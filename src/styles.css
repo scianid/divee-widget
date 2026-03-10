@@ -272,7 +272,7 @@
 }
 
 .divee-send-icon-collapsed {
-  font-size: 18px;
+  font-size: 24px;
   line-height: 1;
   color: var(--divee-color-primary, #68E5FD) !important;
   flex-shrink: 0;
@@ -825,7 +825,7 @@
 }
 
 .divee-send-svg {
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   color: white !important;
   margin: 0 !important;
