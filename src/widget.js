@@ -658,9 +658,7 @@
                     <img class="divee-icon-ai-collapsed" src="https://srv.divee.ai/storage/v1/object/public/public-files/ai.png" alt="AI icon" />
                     <img class="divee-icon-site-collapsed" src="${config.icon_url}" alt="Site icon" />
                     <input type="text" class="divee-search-input-collapsed" placeholder="" readonly />
-                    <svg class="divee-send-icon-collapsed" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-          </svg>
+                    <span class="divee-send-icon-collapsed" aria-hidden="true">&#10148;</span>
         </div>
       `;
 
@@ -766,9 +764,7 @@
               maxlength="200"
             ></textarea>
                         <button class="divee-send" aria-label="Send">
-              <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-              </svg>
+              <span class="divee-send-svg" aria-hidden="true">&#10148;</span>
             </button>
             <div class="divee-input-footer">
                 <div class="divee-warning">${this.escapeHtml(config.disclaimer_text) || 'This is an AI driven tool, results might not always be accurate'}</div>

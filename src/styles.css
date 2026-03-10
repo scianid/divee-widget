@@ -23,6 +23,13 @@
   box-sizing: border-box !important;
 }
 
+/* Reset all child elements to prevent host page style inheritance */
+.divee-widget * {
+  all: revert;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
 /* Floating mode styles */
 .divee-widget-floating {
   position: fixed !important;
@@ -108,7 +115,7 @@
   order: -1;
 }
 
-.divee-widget[dir="rtl"] .divee-send svg,
+.divee-widget[dir="rtl"] .divee-send-svg,
 .divee-widget[dir="rtl"] .divee-send-icon-collapsed {
   transform: scaleX(-1);
 }
@@ -265,16 +272,17 @@
 }
 
 .divee-send-icon-collapsed {
-  width: 22px;
-  height: 22px;
-  color: #4b5563;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--divee-color-primary, #68E5FD) !important;
   flex-shrink: 0;
   margin: 0 !important;
   transition: all 0.3s;
+  display: inline-block;
 }
 
 .divee-search-container-collapsed:hover .divee-send-icon-collapsed {
-  filter: drop-shadow(0 0 4px rgba(75, 85, 99, 0.25));
+  filter: drop-shadow(0 0 4px var(--divee-color-primary, #68E5FD));
   transform: translateX(2px) scale(1.15);
 }
 
@@ -816,11 +824,12 @@
   box-shadow: 0 2px 6px rgba(104, 229, 253, 0.3);
 }
 
-.divee-send svg {
-  width: 20px;
-  height: 20px;
-  fill: white;
+.divee-send-svg {
+  font-size: 18px;
+  line-height: 1;
+  color: white !important;
   margin: 0 !important;
+  display: inline-block;
 }
 
 .divee-send:hover {
