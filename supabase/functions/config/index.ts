@@ -17,8 +17,10 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const projectId = url.searchParams.get('projectId') || url.searchParams.get('client_id');
 
-    if (!projectId)
+    if (!projectId) {
+      console.error(`config: missing projectId in request, url: ${req.url}`);
       return errorResp('Missing projectId', 400);
+    }
 
     const supabase = await supabaseClient();
 
