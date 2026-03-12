@@ -1,7 +1,7 @@
 // @ts-ignore
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-import { logEvent, logImpression, type AnalyticsContext } from '../_shared/analytics.ts';
+import { logEvent, logImpression, logEventBatch, logImpressionBatch, type AnalyticsContext, type BatchEventRow } from '../_shared/analytics.ts';
 import { getRequestOriginUrl, isAllowedOrigin } from '../_shared/origin.ts';
 import { supabaseClient } from '../_shared/supabaseClient.ts';
 import { getProjectById } from '../_shared/dao/projectDao.ts';
@@ -159,13 +159,45 @@ serve(async (req: Request) => {
                 );
             }
 
-            // Process all events in parallel
-            const results = await Promise.allSettled(
-                events.map(event => processEvent(event, supabase, req))
-            );
+            // Split impressions (need geo enrichment) from regular events
+            const clientIp = req.headers.get('cf-connecting-ip') ?? undefined;
+            const impressionEvents: AnalyticsEvent[] = [];
+            const regularRows: BatchEventRow[] = [];
+            let failed = 0;
 
-            const processed = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-            const failed = results.length - processed;
+            for (const event of events) {
+                if (!event.project_id || !event.event_type) { failed++; continue; }
+                if (!ALLOWED_EVENT_TYPES.includes(event.event_type as AllowedEventType)) { failed++; continue; }
+
+                if (event.event_type === 'impression') {
+                    impressionEvents.push(event);
+                } else {
+                    regularRows.push({
+                        project_id: event.project_id,
+                        visitor_id: event.visitor_id,
+                        session_id: event.session_id,
+                        event_type: event.event_type,
+                        event_label: event.event_label,
+                    });
+                }
+            }
+
+            // All geo lookups run in parallel, then one bulk INSERT per table
+            const impressionContexts: AnalyticsContext[] = impressionEvents.map(event => ({
+                projectId: event.project_id,
+                visitorId: event.visitor_id,
+                sessionId: event.session_id,
+                url: req.headers.get('referer') || undefined,
+                referrer: req.headers.get('referer') || undefined,
+                ip: clientIp,
+            }));
+
+            await Promise.all([
+                logEventBatch(supabase, regularRows),
+                logImpressionBatch(supabase, impressionContexts),
+            ]);
+
+            const processed = regularRows.length + impressionEvents.length;
 
             return new Response(
                 JSON.stringify({ success: true, processed, failed, total: events.length }),
