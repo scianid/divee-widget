@@ -1804,7 +1804,14 @@
             if (events.length === 0) return;
             
             try {
-                const endpoint = `${this.config.nonCacheBaseUrl}/analytics`;
+                const urlParams = new URLSearchParams(window.location.search);
+                const analyticsOverride = urlParams.get('diveeAnalyticsOverride') === 'true';
+                const endpoint = analyticsOverride
+                    ? 'https://analytic.divee.ai/functions/v1/analytics'
+                    : `${this.config.nonCacheBaseUrl}/analytics`;
+
+                if (analyticsOverride) this.log('[Divee Analytics] Using override endpoint:', endpoint);
+
                 const payload = events.length === 1 ? events[0] : { batch: events };
                 
                 fetch(endpoint, {
