@@ -31,8 +31,21 @@ Deno.serve(async (req: Request) => {
     ]);
 
     const requestUrl = getRequestOriginUrl(req);
-    if (!isAllowedOrigin(requestUrl, project.allowed_urls)) {
-      console.error('config: origin not allowed', { attempted: requestUrl, allowed: project.allowed_urls, projectId });
+
+    // Allow bypass with a secret key passed as ?bypass_key=... (for internal tooling/testing)
+    const bypassKey = url.searchParams.get('bypass_key');
+    const validBypassKey = Deno.env.get('CONFIG_BYPASS_KEY');
+    const isBypassed = !!(validBypassKey && bypassKey === validBypassKey);
+
+    if (bypassKey && !isBypassed) {
+      console.warn('config: bypass attempt failed', {
+        envKeySet: !!validBypassKey,
+        providedKey: bypassKey?.substring(0, 4) + '...',
+      });
+    }
+
+    if (!isBypassed && !isAllowedOrigin(requestUrl, project.allowed_urls)) {
+      console.warn('config: origin not allowed', { attempted: requestUrl, allowed: project.allowed_urls, projectId });
       return errorResp('Origin not allowed', 403);
     }
     
