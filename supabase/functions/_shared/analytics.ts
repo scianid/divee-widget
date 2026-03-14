@@ -7,6 +7,7 @@ export interface AnalyticsContext {
     sessionId?: string;
     url?: string;
     referrer?: string;
+    articleUrl?: string;
     ip?: string;
     geo?: {
         country?: string;
@@ -60,6 +61,7 @@ export async function logImpression(supabase: ReturnType<typeof createClient>, c
             session_id: ctx.sessionId || null,
             url: ctx.url,
             referrer: ctx.referrer,
+            article_url: ctx.articleUrl || null,
             ip: ctx.ip,
             geo_country: ctx.geo?.country,
             geo_city: ctx.geo?.city,
@@ -90,6 +92,7 @@ export async function logImpressionBatch(supabase: ReturnType<typeof createClien
                 session_id: ctx.sessionId || null,
                 url: ctx.url,
                 referrer: ctx.referrer,
+                article_url: ctx.articleUrl || null,
                 ip: ctx.ip,
                 geo_country: ctx.geo?.country,
                 geo_city: ctx.geo?.city,
@@ -122,6 +125,7 @@ export async function logEvent(
             session_id: ctx.sessionId || null,
             event_type: eventType,
             event_label: eventLabel,
+            article_url: ctx.articleUrl || null,
         });
 
         if (error) {
@@ -138,6 +142,7 @@ export interface BatchEventRow {
     session_id?: string;
     event_type: string;
     event_label?: string;
+    article_url?: string;
 }
 
 export async function logEventBatch(
@@ -154,6 +159,7 @@ export async function logEventBatch(
                 session_id: r.session_id || null,
                 event_type: r.event_type,
                 event_label: r.event_label || null,
+                article_url: r.article_url || null,
             }))
         );
 

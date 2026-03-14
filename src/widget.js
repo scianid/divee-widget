@@ -1739,12 +1739,14 @@
             }
             
             // Prepare event payload
+            const articleUrl = window.location.origin + window.location.pathname;
             const event = {
                 project_id: projectId,
                 visitor_id: visitorId,
                 session_id: sessionId,
                 event_type: eventName,
                 event_label: data.label || null,
+                article_url: articleUrl,
                 event_data: data,
                 timestamp: Date.now()
             };
