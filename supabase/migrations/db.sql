@@ -40,6 +40,7 @@ CREATE TABLE public.analytics_events (
   session_id uuid,
   event_type text NOT NULL,
   event_label text,
+  article_url text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT analytics_events_pkey PRIMARY KEY (id)
 );
@@ -70,6 +71,7 @@ CREATE TABLE public.analytics_impressions (
   created_at timestamp with time zone DEFAULT now(),
   ip text,
   platform text,
+  article_url text,
   CONSTRAINT analytics_impressions_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.analytics_impressions_hourly_agg (
