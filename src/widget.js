@@ -72,6 +72,11 @@
             return urlParams.get('diveeDebug') === 'true';
         }
 
+        isMockAdRequested() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('diveeMockAd') === 'true';
+        }
+
         checkSuggestionsSuppression() {
             const key = `divee_suggestions_suppressed_${window.location.href}`;
             this.state.suggestionsSuppressed = sessionStorage.getItem(key) === 'true';
@@ -621,17 +626,36 @@
 
             // Create shared ad container - starts hidden, revealed only when an ad fills
             const hasAds = config.show_ad && config.ad_tag_id && this.config.displayMode !== 'floating';
+            const showMockAd = !config.show_ad && this.isMockAdRequested();
+            this.log('[MockAd] show_ad:', config.show_ad, '| ad_tag_id:', config.ad_tag_id, '| diveeMockAd param:', this.isMockAdRequested(), '| showMockAd:', showMockAd, '| hasAds:', hasAds);
+            if (showMockAd) {
+                this.log('[MockAd] Rendering mock ad GIF (ads disabled in config + diveeMockAd=true)');
+            } else if (!showMockAd && this.isMockAdRequested()) {
+                this.log('[MockAd] Mock ad NOT shown: diveeMockAd=true but show_ad is enabled in config (mock only works when ads are off)');
+            } else {
+                this.log('[MockAd] Mock ad NOT shown: diveeMockAd param is not true');
+            }
             const adContainer = document.createElement('div');
             adContainer.className = 'divee-ad-container-shared';
-            adContainer.style.display = hasAds ? 'none' : 'none'; // always start hidden; shown on ad fill
-            adContainer.innerHTML = `
-                <div class="divee-ad-slot divee-ad-slot-shared" ${hasAds ? '' : 'style="display: none;"'}>
-                    <!-- Desktop Ad -->
-                    <div id='div-gpt-ad-1770993606680-0' class='divee-ad-desktop' style='display: none; min-width: 300px; min-height: 60px; margin: 0 !important;'></div>
-                    <!-- Mobile Ad -->
-                    <div id='div-gpt-ad-1770993160534-0' class='divee-ad-mobile' style='display: none; min-width: 300px; min-height: 50px;'></div>
-                </div>
-            `;
+            adContainer.style.display = (hasAds || showMockAd) ? 'block' : 'none';
+            if (showMockAd) {
+                adContainer.innerHTML = `
+                    <div class="divee-ad-slot divee-ad-slot-shared divee-mock-ad-slot">
+                        <img src="https://srv.divee.ai/storage/v1/object/public/public-files/fake-ad.gif"
+                             alt="Ad placeholder"
+                             class="divee-mock-ad-img" />
+                    </div>
+                `;
+            } else {
+                adContainer.innerHTML = `
+                    <div class="divee-ad-slot divee-ad-slot-shared" ${hasAds ? '' : 'style="display: none;"'}>
+                        <!-- Desktop Ad -->
+                        <div id='div-gpt-ad-1770993606680-0' class='divee-ad-desktop' style='display: none; min-width: 300px; min-height: 60px; margin: 0 !important;'></div>
+                        <!-- Mobile Ad -->
+                        <div id='div-gpt-ad-1770993160534-0' class='divee-ad-mobile' style='display: none; min-width: 300px; min-height: 50px;'></div>
+                    </div>
+                `;
+            }
             container.appendChild(adContainer);
 
             // Store references
