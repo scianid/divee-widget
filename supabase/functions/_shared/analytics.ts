@@ -50,7 +50,8 @@ export async function logEvent(
         });
 
         if (!res.ok) {
-            console.warn('Analytics: event shipping failed', { status: res.status, eventType, projectId: ctx.projectId });
+            const body = await res.text().catch(() => '');
+            console.warn('Analytics: event shipping failed', { status: res.status, eventType, projectId: ctx.projectId, body });
         }
     } catch (err) {
         console.error('Analytics: Error logging event via secondary', err);
