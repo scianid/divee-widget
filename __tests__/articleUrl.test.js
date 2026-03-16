@@ -4,8 +4,8 @@
  * Covers:
  *  - trackEvent() attaches article_url stripped of query params and hash
  *  - article_url is always origin + pathname regardless of search/hash presence
- *  - analytics.ts helpers (logEvent, logEventBatch, logImpression, logImpressionBatch)
- *    forward article_url to the DB insert
+ *  - analytics.ts helpers (logEvent, logEventBatch)
+ *    forward article_url to the request payload
  */
 
 const { describe, test, expect, beforeEach } = require('@jest/globals');
@@ -27,23 +27,6 @@ function computeArticleUrl(location) {
 // These replicate the pure data-mapping logic so we can unit-test it
 // without Deno / Supabase dependencies.
 // ---------------------------------------------------------------------------
-
-function buildImpressionRow(ctx) {
-    return {
-        project_id: ctx.projectId,
-        visitor_id: ctx.visitorId || null,
-        session_id: ctx.sessionId || null,
-        url: ctx.url,
-        referrer: ctx.referrer,
-        article_url: ctx.articleUrl || null,
-        ip: ctx.ip,
-        geo_country: ctx.geo?.country,
-        geo_city: ctx.geo?.city,
-        geo_lat: ctx.geo?.latitude,
-        geo_lng: ctx.geo?.longitude,
-        platform: ctx.platform || 'unknown',
-    };
-}
 
 function buildEventRow(ctx, eventType, eventLabel) {
     return {
@@ -184,30 +167,6 @@ describe('article_url in analytics.ts insert row builders', () => {
         ip: '1.2.3.4',
         platform: 'desktop',
     };
-
-    describe('logImpression row', () => {
-        test('includes article_url in impression row', () => {
-            const row = buildImpressionRow(baseCtx);
-            expect(row.article_url).toBe('https://example.com/articles/test-story');
-        });
-
-        test('article_url is null when not provided', () => {
-            const row = buildImpressionRow({ ...baseCtx, articleUrl: undefined });
-            expect(row.article_url).toBeNull();
-        });
-    });
-
-    describe('logImpressionBatch rows', () => {
-        test('each row in batch gets its article_url', () => {
-            const ctxs = [
-                { ...baseCtx, articleUrl: 'https://example.com/page-1' },
-                { ...baseCtx, articleUrl: 'https://example.com/page-2' },
-            ];
-            const rows = ctxs.map(buildImpressionRow);
-            expect(rows[0].article_url).toBe('https://example.com/page-1');
-            expect(rows[1].article_url).toBe('https://example.com/page-2');
-        });
-    });
 
     describe('logEvent row', () => {
         test('includes article_url in event row', () => {

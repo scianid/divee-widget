@@ -369,7 +369,7 @@ Messages from the stored `conversations.messages` JSONB array were re-injected v
   - **Flat object only**: nested objects and arrays are rejected per-key (all legitimate widget payloads are flat primitives). Any nested key is silently dropped.
   - **Primitive values only**: strings, numbers, booleans, and null are accepted; any other type is dropped.
   - **500-char string truncation**: individual string values are truncated to 500 characters before storage.
-- Applied in both the `processEvent` function (batch path) and the single-event path, before `logEvent` / `logImpression` is called.
+- Applied in both the `processEvent` function (batch path) and the single-event path, before `logEvent` is called.
 - `url` and `referrer` context extraction also uses the sanitized value, preventing unsanitized data from leaking into the analytics context.
 
 **Original description:**  

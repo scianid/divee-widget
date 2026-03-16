@@ -224,5 +224,4 @@ Your widget should send these events to an analytics endpoint (e.g., Edge Functi
     *   Can track `view_suggestions` event.
 
 ### 4. Shared Logic (`supabase/functions/_shared/analytics.ts`)
-*   Create a reusable helper `logImpression(...)` and `logEvent(...)` in `_shared` to keep business logic clean.
-*   These helpers will perform the Supabase inserts asynchronously (without awaiting, if runtime permits, or just await them).
+*   A reusable `logEvent(...)` helper in `_shared` keeps business logic clean and forwards events to the secondary analytics endpoint.
