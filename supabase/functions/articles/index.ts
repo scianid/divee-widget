@@ -167,6 +167,10 @@ async function handleByTag(
       confidence: row.confidence,
     }));
 
+  if (articles.length === 0) {
+    return sharedErrorResp('No articles found', 404);
+  }
+
   // Cache 10 minutes
   return cachedResp({ articles }, 600, 600, surrogateKey);
 }
@@ -195,7 +199,7 @@ async function handleRelated(
   }
 
   if (!sourceTags || sourceTags.length === 0) {
-    return cachedResp({ articles: [] }, 1800, 1800, surrogateKey);
+    return sharedErrorResp('Article not indexed', 404);
   }
 
   const tagValues = sourceTags.map((t: any) => t.tag);
