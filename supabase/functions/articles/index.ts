@@ -158,8 +158,6 @@ async function handleByTag(
     query = query.eq('tag_type', tagType);
   }
 
-  query = query.order('created_at', { ascending: false });
-
   const { data, error } = await query.range(offset, offset + limit - 1);
 
   if (error) {
