@@ -31,7 +31,7 @@ export function successResp(body: object = {}, status = 200, additionalHeaders: 
     );
 }
 
-export function successRespWithCache(body: object = {}, maxAge = 300, sMaxAge = 3600) {
+export function successRespWithCache(body: object = {}, maxAge = 300, sMaxAge = 3600, surrogateKey = 'config') {
     return new Response(
         JSON.stringify(body),
         {
@@ -41,7 +41,7 @@ export function successRespWithCache(body: object = {}, maxAge = 300, sMaxAge = 
                 'Content-Type': 'application/json',
                 'Cache-Control': `public, max-age=${maxAge}, s-maxage=${sMaxAge}`,
                 'Surrogate-Control': `max-age=${sMaxAge}`,
-                'Surrogate-Key': 'config'
+                'Surrogate-Key': surrogateKey
             }
         }
     );

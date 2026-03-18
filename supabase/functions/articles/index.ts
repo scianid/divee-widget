@@ -1,7 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { corsHeaders, corsHeadersForCache } from '../_shared/cors.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from '../_shared/origin.ts';
+import { successRespWithCache, errorResp as sharedErrorResp } from '../_shared/responses.ts';
 
 const TAG_WEIGHTS: Record<string, number> = {
   person: 2.0,
@@ -9,25 +10,10 @@ const TAG_WEIGHTS: Record<string, number> = {
   category: 1.0,
 };
 
-function cachedResp(body: object, maxAge: number, sMaxAge: number, surrogateKey: string) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: {
-      ...corsHeadersForCache,
-      'Content-Type': 'application/json',
-      'Cache-Control': `public, max-age=${maxAge}, s-maxage=${sMaxAge}`,
-      'Surrogate-Control': `max-age=${sMaxAge}`,
-      'Surrogate-Key': surrogateKey,
-    },
-  });
-}
+const cachedResp = (body: object, maxAge: number, sMaxAge: number, surrogateKey: string) =>
+  successRespWithCache(body, maxAge, sMaxAge, surrogateKey);
 
-function errorResp(message: string, status = 400) {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+const errorResp = (message: string, status = 400) => sharedErrorResp(message, status);
 
 // @ts-ignore
 Deno.serve(async (req: Request) => {
