@@ -112,8 +112,8 @@ async function handleTags(
     return sharedErrorResp('No tags found', 404);
   }
 
-  // Cache 1 hour
-  return cachedResp({ tags }, 3600, 3600, surrogateKey);
+  // Cache 5 minutes
+  return cachedResp({ tags }, 300, 300, surrogateKey);
 }
 
 // ─── GET /articles/by-tag ────────────────────────────────────────────
@@ -126,6 +126,7 @@ async function handleByTag(
   }
 
   const tagType = url.searchParams.get('tagType');
+  const excludeId = url.searchParams.get('excludeId');
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 50);
   const offset = parseInt(url.searchParams.get('offset') || '0', 10) || 0;
 
@@ -147,6 +148,10 @@ async function handleByTag(
 
   if (tagType) {
     query = query.eq('tag_type', tagType);
+  }
+
+  if (excludeId) {
+    query = query.neq('article_unique_id', excludeId);
   }
 
   const { data, error } = await query.range(offset, offset + limit - 1);
@@ -171,8 +176,8 @@ async function handleByTag(
     return sharedErrorResp('No articles found', 404);
   }
 
-  // Cache 10 minutes
-  return cachedResp({ articles }, 600, 600, surrogateKey);
+  // Cache 5 minutes
+  return cachedResp({ articles }, 300, 300, surrogateKey);
 }
 
 // ─── GET /articles/related ───────────────────────────────────────────
@@ -218,7 +223,7 @@ async function handleRelated(
   }
 
   if (!matchingTags || matchingTags.length === 0) {
-    return cachedResp({ articles: [] }, 1800, 1800, surrogateKey);
+    return cachedResp({ articles: [] }, 300, 300, surrogateKey);
   }
 
   // Step 3: Score articles by weighted tag overlap
@@ -239,7 +244,7 @@ async function handleRelated(
     .slice(0, limit);
 
   if (ranked.length === 0) {
-    return cachedResp({ articles: [] }, 1800, 1800, surrogateKey);
+    return cachedResp({ articles: [] }, 300, 300, surrogateKey);
   }
 
   // Step 5: Fetch article details for top results
@@ -276,6 +281,6 @@ async function handleRelated(
       };
     });
 
-  // Cache 30 minutes
-  return cachedResp({ articles }, 1800, 1800, surrogateKey);
+  // Cache 5 minutes
+  return cachedResp({ articles }, 300, 300, surrogateKey);
 }

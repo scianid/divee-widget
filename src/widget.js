@@ -1659,7 +1659,8 @@
             pillElement.classList.add('loading');
 
             try {
-                const url = `${this.config.cachedBaseUrl}/articles/by-tag?projectId=${encodeURIComponent(this.config.projectId)}&tag=${encodeURIComponent(tag.value)}&tagType=${encodeURIComponent(tag.type)}&limit=5`;
+                const currentUniqueId = this.getArticleUniqueId();
+                const url = `${this.config.cachedBaseUrl}/articles/by-tag?projectId=${encodeURIComponent(this.config.projectId)}&tag=${encodeURIComponent(tag.value)}&tagType=${encodeURIComponent(tag.type)}&limit=5${currentUniqueId ? '&excludeId=' + encodeURIComponent(currentUniqueId) : ''}`;
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`Request failed: ${response.status}`);
 
