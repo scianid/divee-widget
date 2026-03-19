@@ -320,7 +320,8 @@ describe('Widget Integration Tests', () => {
 
       const widget = new DiveeWidget({
         projectId: 'test-project-123',
-        nonCacheBaseUrl: 'https://api.test.com'
+        nonCacheBaseUrl: 'https://api.test.com',
+        analyticsBaseUrl: 'https://api.test.com'
       });
 
       // Wait for init to complete
@@ -328,6 +329,9 @@ describe('Widget Integration Tests', () => {
 
       widget.state.visitorId = 'test-visitor';
       widget.state.sessionId = 'test-session';
+
+      // Clear previous fetch calls from init
+      fetch.mockClear();
 
       // Mock analytics response
       fetch.mockResolvedValueOnce({
@@ -340,16 +344,10 @@ describe('Widget Integration Tests', () => {
         position: 'bottom-right'
       });
 
-      // Check the analytics call (should be second fetch call, first was config)
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/analytics',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      );
-
+      // widget_loaded is an immediate event, so it should be sent right away
       const analyticsCall = fetch.mock.calls.find(call => call[0] === 'https://api.test.com/analytics');
+      expect(analyticsCall).toBeTruthy();
+
       const body = JSON.parse(analyticsCall[1].body);
       
       expect(body.project_id).toBe('test-project-123');

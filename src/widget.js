@@ -41,6 +41,17 @@
                 activeTagPopup: null           // Currently open tag popup pill element
             };
 
+            // Session tracking state
+            this.sessionTracking = {
+                startedAt: Date.now(),
+                activeStart: Date.now(),       // null when tab is hidden
+                accumulatedActiveMs: 0,
+                hasInteracted: false,
+                interactionType: null,         // 'divee_opened' | 'suggestions_received' | 'question_asked'
+                timers: [],                    // setTimeout IDs for heartbeat schedule
+                interval: null                 // setInterval ID for recurring heartbeats
+            };
+
             // Analytics batching
             this.analyticsQueue = [];
             this.analyticsFlushTimer = null;
@@ -77,6 +88,171 @@
         isMockAdRequested() {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get('diveeMockAd') === 'true';
+        }
+
+        // ============================================
+        // SESSION TRACKING
+        // ============================================
+
+        getOrCreateSessionTrackingId() {
+            const key = 'divee_session_tracking_id';
+            let id = sessionStorage.getItem(key);
+            if (!id) {
+                id = this.generateUUID();
+                sessionStorage.setItem(key, id);
+            }
+            return id;
+        }
+
+        computeSessionTotals() {
+            const now = Date.now();
+            const st = this.sessionTracking;
+            const activeMs = st.accumulatedActiveMs +
+                (st.activeStart !== null ? now - st.activeStart : 0);
+            return {
+                active_seconds: Math.round(activeMs / 1000),
+                elapsed_seconds: Math.round((now - st.startedAt) / 1000)
+            };
+        }
+
+        buildSessionPayload() {
+            const { active_seconds, elapsed_seconds } = this.computeSessionTotals();
+            const st = this.sessionTracking;
+            const payload = {
+                project_id: this.config.projectId,
+                session_id: this.getOrCreateSessionTrackingId(),
+                visitor_id: this.state.visitorId || null,
+                active_seconds,
+                elapsed_seconds,
+                interaction_with_divee: st.hasInteracted,
+            };
+            if (st.interactionType) {
+                payload.interaction_type = st.interactionType;
+            }
+            return payload;
+        }
+
+        sendSessionHeartbeat() {
+            const payload = this.buildSessionPayload();
+            const endpoint = `${this.config.analyticsBaseUrl}/analytics`;
+            this.log('[Divee Session] Heartbeat:', payload);
+            const blob = new Blob([JSON.stringify({ session: payload })], {
+                type: 'text/plain'
+            });
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(endpoint, blob);
+            } else {
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session: payload }),
+                    keepalive: true
+                }).catch(() => { /* best-effort telemetry */ });
+            }
+        }
+
+        sendSessionBeacon() {
+            const payload = this.buildSessionPayload();
+            const endpoint = `${this.config.analyticsBaseUrl}/analytics`;
+            const blob = new Blob([JSON.stringify({ session: payload })], {
+                type: 'text/plain'
+            });
+            this.log('[Divee Session] Beacon:', payload);
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(endpoint, blob);
+            } else {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', endpoint, false);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.send(JSON.stringify({ session: payload }));
+            }
+        }
+
+        recordSessionEvent(eventType) {
+            const EVENT_TO_INTERACTION = {
+                widget_expanded: 'divee_opened',
+                open_chat: 'divee_opened',
+                suggestions_fetched: 'suggestions_received',
+                get_suggestions: 'suggestions_received',
+                question_asked: 'question_asked',
+                ask_question: 'question_asked',
+                suggestion_question_asked: 'question_asked',
+                custom_question_asked: 'question_asked'
+            };
+            const INTERACTION_DEPTH = {
+                divee_opened: 1,
+                suggestions_received: 2,
+                question_asked: 3
+            };
+
+            const tier = EVENT_TO_INTERACTION[eventType];
+            if (!tier) return;
+
+            const st = this.sessionTracking;
+            st.hasInteracted = true;
+
+            const advanced =
+                st.interactionType === null ||
+                INTERACTION_DEPTH[tier] > INTERACTION_DEPTH[st.interactionType];
+
+            if (advanced) {
+                st.interactionType = tier;
+                // Send session heartbeat immediately on interaction advancement
+                this.sendSessionHeartbeat();
+            }
+        }
+
+        initSessionTracking() {
+            const SCHEDULE = [5000, 10000, 20000]; // early heartbeats at 5s, 10s, 20s
+            const INTERVAL = 30000;                 // then every 30s
+
+            const st = this.sessionTracking;
+
+            const t1 = setTimeout(() => {
+                this.sendSessionHeartbeat();
+                const t2 = setTimeout(() => {
+                    this.sendSessionHeartbeat();
+                    const t3 = setTimeout(() => {
+                        this.sendSessionHeartbeat();
+                        st.interval = setInterval(() => this.sendSessionHeartbeat(), INTERVAL);
+                    }, SCHEDULE[2] - SCHEDULE[1]);
+                    st.timers.push(t3);
+                }, SCHEDULE[1] - SCHEDULE[0]);
+                st.timers.push(t2);
+            }, SCHEDULE[0]);
+            st.timers.push(t1);
+
+            // Track tab visibility for active_seconds
+            this._handleSessionVisibility = () => {
+                if (document.visibilityState === 'hidden') {
+                    if (st.activeStart !== null) {
+                        st.accumulatedActiveMs += Date.now() - st.activeStart;
+                        st.activeStart = null;
+                    }
+                    this.sendSessionBeacon();
+                } else {
+                    st.activeStart = Date.now();
+                }
+            };
+            document.addEventListener('visibilitychange', this._handleSessionVisibility);
+
+            this._handleSessionBeforeUnload = () => {
+                if (st.activeStart !== null) {
+                    st.accumulatedActiveMs += Date.now() - st.activeStart;
+                    st.activeStart = null;
+                }
+                this.sendSessionBeacon();
+            };
+            window.addEventListener('beforeunload', this._handleSessionBeforeUnload);
+        }
+
+        cleanupSessionTracking() {
+            const st = this.sessionTracking;
+            st.timers.forEach(t => clearTimeout(t));
+            if (st.interval) clearInterval(st.interval);
+            document.removeEventListener('visibilitychange', this._handleSessionVisibility);
+            window.removeEventListener('beforeunload', this._handleSessionBeforeUnload);
+            this.sendSessionHeartbeat();
         }
 
         checkSuggestionsSuppression() {
@@ -320,6 +496,9 @@
 
             // Setup analytics batch flush on page unload
             this.setupPageUnloadFlush();
+
+            // Setup session tracking (heartbeats + active time)
+            this.initSessionTracking();
 
             // Setup attention animation (off by default)
             this.setupAttentionAnimation();
@@ -1354,6 +1533,11 @@
         }
 
         async askQuestion(question, type, questionId) {
+            // Track question event for session tracking
+            this.trackEvent(type === 'suggestion' ? 'suggestion_question_asked' : 'custom_question_asked', {
+                question_type: type
+            });
+
             // Close suggestions overlay so user can see the chat
             const suggestionsContainer = this.elements.expandedView.querySelector('.divee-suggestions-input');
             if (suggestionsContainer) {
@@ -1993,6 +2177,9 @@
 
         trackEvent(eventName, data = {}) {
             this.log('[Divee Analytics]', eventName, data);
+
+            // Update session tracking interaction state
+            this.recordSessionEvent(eventName);
             
             // Get visitor and session IDs from state (already initialized in init())
             const visitorId = this.state.visitorId;
@@ -2144,10 +2331,10 @@
                     const payload = events.length === 1 ? events[0] : { batch: events };
                     
                     if (navigator.sendBeacon) {
-                        // Pass a Blob so the browser sends Content-Type: application/json.
-                        // A plain string would default to text/plain, which the edge
-                        // runtime can't parse as JSON, resulting in empty-body errors.
-                        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+                        // Use text/plain to avoid CORS preflight.
+                        // The server reads the raw body with req.text() + JSON.parse(),
+                        // so Content-Type doesn't matter for parsing.
+                        const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain' });
                         navigator.sendBeacon(endpoint, blob);
                     } else {
                         // Fallback to sync XHR (blocking but reliable)
