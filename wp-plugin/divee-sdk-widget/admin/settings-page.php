@@ -105,13 +105,22 @@ function divee_sdk_wp_render_settings_page() {
 		</div>
 
 		<div style="margin-top: 30px; background: #f5f5f5; padding: 20px; border-radius: 5px; max-width: 600px;">
-			<h3><?php esc_html_e( 'How to use:', 'divee-sdk-widget' ); ?></h3>
+			<h3><?php esc_html_e( 'How to get started:', 'divee-sdk-widget' ); ?></h3>
 			<ol>
-				<li><?php esc_html_e( 'Enter your Divee Project ID above (found in your Divee Dashboard)', 'divee-sdk-widget' ); ?></li>
-				<li><?php esc_html_e( 'Select which post types should display the widget', 'divee-sdk-widget' ); ?></li>
-				<li><?php esc_html_e( 'Choose placement mode: Top, Bottom, or Shortcode', 'divee-sdk-widget' ); ?></li>
-				<li><?php esc_html_e( 'Save settings', 'divee-sdk-widget' ); ?></li>
-				<li><?php esc_html_e( 'If using Shortcode mode, insert [divee_widget] inside post content where you want the widget', 'divee-sdk-widget' ); ?></li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to divee.ai */
+						wp_kses( __( 'Create an account at <a href="%s" target="_blank" rel="noopener noreferrer">divee.ai</a>', 'divee-sdk-widget' ), array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ) ) ),
+						'https://divee.ai'
+					);
+					?>
+				</li>
+				<li><?php esc_html_e( 'In your Divee dashboard, go to the Account section and set up your account.', 'divee-sdk-widget' ); ?></li>
+				<li><?php esc_html_e( 'Go to the Inventory section and create a new widget.', 'divee-sdk-widget' ); ?></li>
+				<li><?php esc_html_e( 'Copy the Project ID from your new widget and paste it in the field above.', 'divee-sdk-widget' ); ?></li>
+				<li><?php esc_html_e( 'Select which post types should display the widget and choose a placement mode.', 'divee-sdk-widget' ); ?></li>
+				<li><?php esc_html_e( 'Save settings. If using Shortcode mode, insert [divee_widget] inside post content where you want the widget to appear.', 'divee-sdk-widget' ); ?></li>
 			</ol>
 			<p>
 				<strong><?php esc_html_e( 'Disable on specific posts:', 'divee-sdk-widget' ); ?></strong><br />
