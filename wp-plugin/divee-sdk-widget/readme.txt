@@ -1,6 +1,6 @@
 === Divee SDK Widget ===
 Contributors: divee
-Tags: ai, chat, widget, content, engagement, articles
+Tags: ai, chat, widget, engagement, articles
 Requires at least: 5.8
 Tested up to: 6.9
 Requires PHP: 7.4

@@ -15,7 +15,7 @@ defined( 'ABSPATH' ) || exit;
  */
 function divee_sdk_wp_get_article_data( $post_id ) {
 	$content = (string) get_post_field( 'post_content', $post_id );
-	$content = apply_filters( 'the_content', $content );
+	$content = apply_filters( 'the_content', $content ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Calling core WP filter, not registering a custom hook.
 	$content = wp_strip_all_tags( $content, true );
 	$content = preg_replace( '/\s+/', ' ', $content );
 	$content = trim( (string) $content );

@@ -236,7 +236,7 @@ function divee_sdk_wp_render_post_meta_box( $post ) {
  * Save post meta
  */
 function divee_sdk_wp_save_post_meta( $post_id ) {
-	if ( ! isset( $_POST['divee_sdk_wp_nonce'] ) || ! wp_verify_nonce( $_POST['divee_sdk_wp_nonce'], 'divee_sdk_wp_save_disable' ) ) {
+	if ( ! isset( $_POST['divee_sdk_wp_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['divee_sdk_wp_nonce'] ) ), 'divee_sdk_wp_save_disable' ) ) {
 		return;
 	}
 
