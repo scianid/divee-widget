@@ -3,7 +3,7 @@
  * Plugin Name: Divee SDK Widget
  * Plugin URI: https://divee.ai
  * Description: Embed the Divee AI widget on WordPress posts and pages with one-click setup.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Divee
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'DIVEE_SDK_WP_PLUGIN_VERSION', '1.0.0' );
+define( 'DIVEE_SDK_WP_PLUGIN_VERSION', '1.1.0' );
 define( 'DIVEE_SDK_WP_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
 
 require_once DIVEE_SDK_WP_PLUGIN_PATH . 'includes/settings.php';
