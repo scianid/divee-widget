@@ -1173,41 +1173,8 @@
                                 console.log('[Divee Ad] All slots empty, hiding containers');
                             }
                         } else {
-                            // Ad filled — reveal it and constrain container to the exact ad width
+                            // Ad filled — reveal it
                             if (adElement) adElement.style.display = '';
-                            if (event.size && event.size[0]) {
-                                const adWidth = event.size[0];
-                                console.log('[Divee Ad] Setting width to', adWidth + 'px', 'for', slotId);
-                                // Use setProperty with 'important' to beat AMP/site inline styles
-                                if (adElement) {
-                                    adElement.style.setProperty('width', adWidth + 'px', 'important');
-                                    adElement.style.setProperty('max-width', adWidth + 'px', 'important');
-                                    adElement.style.setProperty('overflow', 'hidden', 'important');
-                                    // Also clamp the GPT-injected iframe
-                                    const iframe = adElement.querySelector('iframe');
-                                    if (iframe) {
-                                        iframe.style.setProperty('max-width', '100%', 'important');
-                                        iframe.style.setProperty('overflow', 'hidden', 'important');
-                                    }
-                                }
-                                if (adSlotContainer) {
-                                    adSlotContainer.style.setProperty('width', adWidth + 'px', 'important');
-                                    adSlotContainer.style.setProperty('max-width', adWidth + 'px', 'important');
-                                    adSlotContainer.style.setProperty('overflow', 'hidden', 'important');
-                                }
-                                if (adOuterContainer) {
-                                    adOuterContainer.style.setProperty('width', adWidth + 'px', 'important');
-                                    adOuterContainer.style.setProperty('max-width', adWidth + 'px', 'important');
-                                    adOuterContainer.style.setProperty('overflow', 'hidden', 'important');
-                                }
-                                console.log('[Divee Ad] Widths set —',
-                                    'adElement.style.width:', adElement?.style.width,
-                                    'adSlotContainer.style.width:', adSlotContainer?.style.width,
-                                    'adOuterContainer.style.width:', adOuterContainer?.style.width
-                                );
-                            } else {
-                                console.warn('[Divee Ad] No size in event, cannot set width. event.size:', event.size);
-                            }
                             if (adSlotContainer) adSlotContainer.style.display = '';
                             if (adOuterContainer) adOuterContainer.style.display = '';
                             self.trackEvent('ad_impression', {

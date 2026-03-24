@@ -440,7 +440,7 @@
 }
 
 .divee-ad-desktop {
-  display: block;
+  display: none;
   width: 100% !important;
   overflow: hidden !important;
 }
@@ -1570,14 +1570,6 @@
   
   .divee-search-input-collapsed {
     font-size: 15px;
-  }
-  
-  .divee-ad-desktop {
-    display: none !important;
-  }
-  
-  .divee-ad-mobile {
-    display: block !important;
   }
   
   /* Floating mode mobile adjustments */
