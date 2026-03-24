@@ -816,6 +816,8 @@
             const container = document.createElement('div');
             container.className = 'divee-widget';
             container.setAttribute('data-state', 'collapsed');
+            // Force overflow:hidden via inline important — beats AMP/site CSS that may override the class rule
+            container.style.setProperty('overflow', 'hidden', 'important');
             
             // Apply display mode
             if (this.config.displayMode === 'floating') {
@@ -867,9 +869,9 @@
                 adContainer.innerHTML = `
                     <div class="divee-ad-slot divee-ad-slot-shared" ${hasAds ? '' : 'style="display: none;"'}>
                         <!-- Desktop Ad -->
-                        <div id='div-gpt-ad-1770993606680-0' class='divee-ad-desktop' style='display: none; min-height: 60px; margin: 0 !important;'></div>
+                        <div id='div-gpt-ad-1770993606680-0' class='divee-ad-desktop' style='display: none; min-height: 60px; margin: 0 !important; max-width: 100%; overflow: hidden;'></div>
                         <!-- Mobile Ad -->
-                        <div id='div-gpt-ad-1770993160534-0' class='divee-ad-mobile' style='display: none; min-height: 50px;'></div>
+                        <div id='div-gpt-ad-1770993160534-0' class='divee-ad-mobile' style='display: none; min-height: 50px; max-width: 100%; overflow: hidden;'></div>
                     </div>
                 `;
             }
@@ -1187,9 +1189,28 @@
                             if (event.size && event.size[0]) {
                                 const adWidth = event.size[0];
                                 console.log('[Divee Ad] Setting width to', adWidth + 'px', 'for', slotId);
-                                if (adElement) adElement.style.width = adWidth + 'px';
-                                if (adSlotContainer) adSlotContainer.style.width = adWidth + 'px';
-                                if (adOuterContainer) adOuterContainer.style.width = adWidth + 'px';
+                                // Use setProperty with 'important' to beat AMP/site inline styles
+                                if (adElement) {
+                                    adElement.style.setProperty('width', adWidth + 'px', 'important');
+                                    adElement.style.setProperty('max-width', adWidth + 'px', 'important');
+                                    adElement.style.setProperty('overflow', 'hidden', 'important');
+                                    // Also clamp the GPT-injected iframe
+                                    const iframe = adElement.querySelector('iframe');
+                                    if (iframe) {
+                                        iframe.style.setProperty('max-width', '100%', 'important');
+                                        iframe.style.setProperty('overflow', 'hidden', 'important');
+                                    }
+                                }
+                                if (adSlotContainer) {
+                                    adSlotContainer.style.setProperty('width', adWidth + 'px', 'important');
+                                    adSlotContainer.style.setProperty('max-width', adWidth + 'px', 'important');
+                                    adSlotContainer.style.setProperty('overflow', 'hidden', 'important');
+                                }
+                                if (adOuterContainer) {
+                                    adOuterContainer.style.setProperty('width', adWidth + 'px', 'important');
+                                    adOuterContainer.style.setProperty('max-width', adWidth + 'px', 'important');
+                                    adOuterContainer.style.setProperty('overflow', 'hidden', 'important');
+                                }
                                 console.log('[Divee Ad] Widths set —',
                                     'adElement.style.width:', adElement?.style.width,
                                     'adSlotContainer.style.width:', adSlotContainer?.style.width,
