@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
     // Fallback: generate hard-coded suggestions
     console.log('suggestions: cache miss, generating');
     const result = await generateSuggestions(title, content, project?.language || 'en');
-    const { suggestions, tokenUsage } = result;
+    const { suggestions, tokenUsage, model } = result;
     console.log('suggestions: ai result', { suggestions, tokenUsage });
 
     // Track token usage (async, don't block)
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
         sessionId: session_id,
         inputTokens: tokenUsage.inputTokens,
         outputTokens: tokenUsage.outputTokens,
-        model: undefined, // Will be populated from env in future
+        model,
         endpoint: 'suggestions',
         metadata: {
           article_url: url,

@@ -1,3 +1,5 @@
+import { computeCostUsd } from '../ai-costs.ts';
+
 export type TokenUsageData = {
   projectId: string;
   conversationId?: string;
@@ -5,7 +7,7 @@ export type TokenUsageData = {
   sessionId?: string;
   inputTokens: number;
   outputTokens: number;
-  model?: string;
+  model: string;
   endpoint: 'chat' | 'suggestions';
   metadata?: Record<string, any>;
 };
@@ -25,6 +27,8 @@ export async function insertTokenUsage(
       endpoint: data.endpoint
     });
 
+    const cost_usd = computeCostUsd(data.model, data.inputTokens, data.outputTokens);
+
     const { error } = await supabase
       .from('token_usage')
       .insert({
@@ -34,7 +38,8 @@ export async function insertTokenUsage(
         session_id: data.sessionId || null,
         input_tokens: data.inputTokens,
         output_tokens: data.outputTokens,
-        model: data.model || null,
+        model: data.model,
+        cost_usd,
         endpoint: data.endpoint,
         metadata: data.metadata || null
       });

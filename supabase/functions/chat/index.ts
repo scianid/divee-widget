@@ -245,7 +245,7 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    const aiResponse = await streamAnswer(aiMessages, customization);
+    const { response: aiResponse, model: aiModel } = await streamAnswer(aiMessages, customization);
 
     if (!aiResponse.body)
       return errorResp('AI response stream unavailable', 500);
@@ -274,7 +274,7 @@ Deno.serve(async (req: Request) => {
             sessionId: session_id,
             inputTokens: tokenUsage.inputTokens,
             outputTokens: tokenUsage.outputTokens,
-            model: undefined, // Will be populated from env in future
+            model: aiModel,
             endpoint: 'chat',
             metadata: {
               question_id: questionId,

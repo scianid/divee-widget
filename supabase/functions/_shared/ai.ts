@@ -1,4 +1,4 @@
-const TOTAL_SUGGESTIONS = 5;
+const TOTAL_SUGGESTIONS = 4;
 const MAX_TOKENS_CHAT = 4000;
 const MAX_TOKENS_SUGGESTIONS = 4000;
 const AI_PROVIDER_ENV = 'AI_PROVIDER';
@@ -55,11 +55,12 @@ export type Message = {
 export type SuggestionsResult = {
   suggestions: SuggestionItem[];
   tokenUsage: TokenUsage | null;
+  model: string;
 };
 
 export type StreamResult = {
   response: Response;
-  tokenUsage: TokenUsage | null;
+  model: string;
 };
 
 export type AiCustomization = {
@@ -170,10 +171,10 @@ export async function generateSuggestions(title: string, content: string, langua
   try {
     const parsed = JSON.parse(stripCodeFences(contentText || ''));
     if (Array.isArray(parsed) && parsed.every((s) => typeof s === 'string')) {
-      return { suggestions: toSuggestionItems(parsed.slice(0, TOTAL_SUGGESTIONS)), tokenUsage };
+      return { suggestions: toSuggestionItems(parsed.slice(0, TOTAL_SUGGESTIONS)), tokenUsage, model };
     }
     if (parsed && Array.isArray(parsed.suggestions) && parsed.suggestions.every((s: unknown) => typeof s === 'string')) {
-      return { suggestions: toSuggestionItems(parsed.suggestions.slice(0, TOTAL_SUGGESTIONS)), tokenUsage };
+      return { suggestions: toSuggestionItems(parsed.suggestions.slice(0, TOTAL_SUGGESTIONS)), tokenUsage, model };
     }
     console.error('ai: parsed content is not string array', { parsed });
   } catch (error) {
@@ -296,15 +297,15 @@ function transformResponsesApiStream(responsesStream: ReadableStream<Uint8Array>
 }
 
 // Overload for backward compatibility (single question)
-export async function streamAnswer(title: string, content: string, question: string): Promise<Response>;
+export async function streamAnswer(title: string, content: string, question: string): Promise<StreamResult>;
 // Overload for conversation history (message array) with optional AI customization
-export async function streamAnswer(messages: Message[], customization?: AiCustomization): Promise<Response>;
+export async function streamAnswer(messages: Message[], customization?: AiCustomization): Promise<StreamResult>;
 
 export async function streamAnswer(
   titleOrMessages: string | Message[],
   contentOrCustomization?: string | AiCustomization,
   question?: string
-): Promise<Response> {
+): Promise<StreamResult> {
   const { apiKey, url, model, provider } = getAiConfig();
   console.info('ai: streamAnswer', { provider, model });
 
@@ -399,7 +400,7 @@ Question: ${question}`;
     aiResponse = rawResponse;
   }
 
-  return aiResponse;
+  return { response: aiResponse, model };
 }
 
 type DeepSeekStreamChunk = {
