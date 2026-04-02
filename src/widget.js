@@ -874,6 +874,9 @@
                 this.log('Applying floating mode with position:', this.config.floatingPosition);
                 container.classList.add('divee-widget-floating');
                 container.setAttribute('data-floating-position', this.config.floatingPosition);
+            } else if (this.config.displayMode === 'cubic') {
+                this.log('Cubic mode');
+                container.classList.add('divee-widget-cubic');
             } else {
                 this.log('Anchored mode, position:', this.config.anchoredPosition);
             }
@@ -886,12 +889,10 @@
 
             // Create collapsed view
             const collapsedView = this.createCollapsedView();
-            container.appendChild(collapsedView);
 
             // Create expanded view (hidden initially)
             const expandedView = this.createExpandedView();
             expandedView.style.display = 'none';
-            container.appendChild(expandedView);
 
             // Create shared ad container - starts hidden, revealed only when an ad fills
             const hasAds = config.show_ad && config.ad_tag_id && this.config.displayMode !== 'floating';
@@ -925,7 +926,22 @@
                     </div>
                 `;
             }
-            container.appendChild(adContainer);
+
+            // For cubic mode: wrap widget views in a column, ad becomes a sibling column
+            if (this.config.displayMode === 'cubic') {
+                const widgetCol = document.createElement('div');
+                widgetCol.className = 'divee-cubic-widget-col';
+                widgetCol.appendChild(collapsedView);
+                widgetCol.appendChild(expandedView);
+                container.appendChild(widgetCol);
+                adContainer.classList.add('divee-cubic-ad-col');
+                adContainer.style.display = 'flex';
+                container.appendChild(adContainer);
+            } else {
+                container.appendChild(collapsedView);
+                container.appendChild(expandedView);
+                container.appendChild(adContainer);
+            }
 
             // Store references
             this.elements.container = container;
@@ -948,23 +964,58 @@
             // Hide ads in floating mode collapsed view
             const showAd = (config.show_ad && config.ad_tag_id && this.config.displayMode !== 'floating') ? '' : 'style="display: none;"';
             
-            view.innerHTML = `
-                <div class="divee-powered-by-collapsed">
-                    <a class="divee-powered-by" href="https://www.divee.ai" target="_blank" rel="noopener noreferrer">powered by divee.ai</a>
-                </div>
-                <div class="divee-search-container-collapsed">
-                    <div class="divee-ai-identity" aria-label="AI">
-                        <svg class="divee-ai-identity-sparkle" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/>
-                        </svg>
-                        <span class="divee-ai-label">AI</span>
+            if (this.config.displayMode === 'cubic') {
+                const placeholders = config.input_text_placeholders || [];
+                const cubicHeadline = placeholders[0] || 'Ask me anything';
+                const cubicSubline = placeholders[1] || 'Type below to start chatting';
+                view.innerHTML = `
+                    <div class="divee-cubic-header">
+                        <div class="divee-ai-identity" aria-label="AI">
+                            <svg class="divee-ai-identity-sparkle" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/>
+                            </svg>
+                            <span class="divee-ai-label">AI</span>
+                        </div>
+                        <img class="divee-site-favicon-collapsed" src="${config.icon_url}" alt="" aria-hidden="true" />
                     </div>
-                    <img class="divee-site-favicon-collapsed" src="${config.icon_url}" alt="" aria-hidden="true" />
-                    <input type="text" class="divee-search-input-collapsed" placeholder="" readonly />
-                    <span class="divee-send-icon-collapsed" aria-hidden="true">&#10148;</span>
-                </div>
-                <div class="divee-tag-pills divee-tag-pills-collapsed"></div>
-            `;
+                    <div class="divee-cubic-invite">
+                        <p class="divee-cubic-headline">${cubicHeadline}</p>
+                        <p class="divee-cubic-subline">${cubicSubline}</p>
+                    </div>
+                    <div class="divee-search-container-collapsed">
+                        <input type="text" class="divee-search-input-collapsed" placeholder="" readonly />
+                        <span class="divee-send-icon-collapsed" aria-hidden="true">&#10148;</span>
+                    </div>
+                    <div class="divee-cubic-footer">
+                        <div class="divee-cubic-online">
+                            <span class="divee-cubic-online-dot"></span>
+                            <span class="divee-cubic-online-label">Online</span>
+                        </div>
+                        <div class="divee-powered-by-collapsed">
+                            <a class="divee-powered-by" href="https://www.divee.ai" target="_blank" rel="noopener noreferrer">powered by divee.ai</a>
+                        </div>
+                    </div>
+                    <div class="divee-tag-pills divee-tag-pills-collapsed"></div>
+                `;
+            } else {
+                view.innerHTML = `
+                    <div class="divee-powered-by-collapsed">
+                        <a class="divee-powered-by" href="https://www.divee.ai" target="_blank" rel="noopener noreferrer">powered by divee.ai</a>
+                    </div>
+                    <div class="divee-search-container-collapsed">
+                        <div class="divee-ai-identity" aria-label="AI">
+                            <svg class="divee-ai-identity-sparkle" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/>
+                            </svg>
+                            <span class="divee-ai-label">AI</span>
+                        </div>
+                        <img class="divee-site-favicon-collapsed" src="${config.icon_url}" alt="" aria-hidden="true" />
+                        <input type="text" class="divee-search-input-collapsed" placeholder="" readonly />
+                        <span class="divee-send-icon-collapsed" aria-hidden="true">&#10148;</span>
+                    </div>
+                    <div class="divee-tag-pills divee-tag-pills-collapsed"></div>
+                `;
+            }
 
             // Add typewriter effect
             setTimeout(() => {
@@ -1920,12 +1971,18 @@
 
             containers.forEach(container => {
                 container.innerHTML = '';
-                tags.forEach(tag => {
+                const isCubicCollapsed = container.classList.contains('divee-tag-pills-collapsed')
+                    && this.config.displayMode === 'cubic';
+                const visibleTags = isCubicCollapsed ? tags.slice(0, 3) : tags;
+                visibleTags.forEach(tag => {
                     const pill = document.createElement('button');
                     pill.className = 'divee-tag-pill';
                     pill.setAttribute('data-tag', tag.value);
                     pill.setAttribute('data-type', tag.type);
-                    pill.textContent = tag.value.length > 20 ? tag.value.substring(0, 20) + '...' : tag.value;
+                    const maxChars = isCubicCollapsed ? 10 : 20;
+                    const truncated = tag.value.length > maxChars ? tag.value.substring(0, maxChars) + '...' : tag.value;
+                    pill.textContent = truncated;
+                    if (truncated !== tag.value) pill.setAttribute('data-tooltip', tag.value);
                     pill.addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.handleTagPillClick(pill, tag);

@@ -89,6 +89,197 @@
   display: none !important;
 }
 
+/* ============================================
+   Cubic Layout Mode
+   Closed: 300×250 widget column + 300×250 ad column side by side
+   Opened: stacks vertically, full-width like anchored mode
+   ============================================ */
+
+/* Override base widget dimensions */
+.divee-widget-cubic {
+  width: auto !important;
+  max-width: none !important;
+  margin: 10px 0 !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+}
+
+/* Collapsed: horizontal flex row */
+.divee-widget-cubic[data-state="collapsed"] {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0 !important;
+  width: 650px !important;
+  height: 250px !important;
+}
+
+/* Expanded: revert to stacked block layout */
+.divee-widget-cubic[data-state="expanded"] {
+  display: block !important;
+  width: 100% !important;
+  max-width: 800px !important;
+  height: auto !important;
+}
+
+/* Widget column — left side */
+.divee-widget-cubic .divee-cubic-widget-col {
+  width: 350px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.divee-widget-cubic[data-state="collapsed"] .divee-cubic-widget-col {
+  height: 250px !important;
+}
+
+.divee-widget-cubic[data-state="expanded"] .divee-cubic-widget-col {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Collapsed view fills the widget column */
+.divee-widget-cubic .divee-collapsed {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  height: 100% !important;
+  padding: 16px !important;
+  background: white !important;
+  box-sizing: border-box !important;
+}
+
+/* Header row: AI badge left, site favicon right */
+.divee-cubic-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.divee-cubic-header .divee-site-favicon-collapsed {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
+  object-fit: contain !important;
+}
+
+/* Invite copy — middle of the card */
+.divee-cubic-invite {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 4px !important;
+}
+
+.divee-cubic-headline {
+  all: unset !important;
+  display: block !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  line-height: 1.3 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.divee-cubic-subline {
+  all: unset !important;
+  display: block !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: #6b7280 !important;
+  line-height: 1.4 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Footer row: Online (left) + powered by (right) */
+.divee-cubic-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding-left: 14px !important;
+}
+
+/* Online indicator */
+.divee-cubic-online {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.divee-cubic-online-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  display: inline-block !important;
+  animation: divee-cubic-pulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes divee-cubic-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  50%       { opacity: 0.7; box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); }
+}
+
+.divee-cubic-online-label {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #22c55e !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* Input row: just input + send, no side icons */
+.divee-widget-cubic .divee-search-container-collapsed {
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  margin-bottom: 0 !important;
+}
+
+.divee-widget-cubic .divee-search-input-collapsed {
+  font-size: 13px !important;
+}
+
+/* Powered-by sits at the bottom, right-aligned */
+.divee-widget-cubic .divee-powered-by-collapsed {
+  text-align: right !important;
+}
+
+.divee-widget-cubic .divee-powered-by-collapsed .divee-powered-by {
+  font-size: 11px !important;
+  color: #d1d5db !important;
+}
+
+/* Ad column — right side */
+.divee-cubic-ad-col {
+  width: 300px !important;
+  height: 250px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  background: #f5f5f5 !important;
+}
+
+/* Ad slot fills the ad column */
+.divee-cubic-ad-col .divee-ad-slot {
+  width: 300px !important;
+  height: 250px !important;
+  min-height: unset !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Hide ad column when expanded */
+.divee-widget-cubic[data-state="expanded"] .divee-cubic-ad-col {
+  display: none !important;
+}
+
 /* Reset all children */
 .divee-widget * {
   box-sizing: border-box !important;
@@ -261,7 +452,7 @@
   border: none !important;
   background: transparent !important;
   outline: none !important;
-  font-size: 18px !important;
+  font-size: 16px !important;
   color: #1f2937 !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
   overflow: hidden !important;
@@ -271,7 +462,6 @@
   padding: 0 !important;
   margin: 0 !important;
   height: auto !important;
-  line-height: 1.5 !important;
   box-shadow: none !important;
   appearance: none !important;
   -webkit-appearance: none !important;
@@ -1353,6 +1543,30 @@
   overflow: hidden;
   text-overflow: ellipsis;
   animation: divee-fade-in 300ms ease-out;
+  position: relative;
+}
+
+.divee-tag-pill[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0ms; /* instant */
+  z-index: 9999999;
+}
+
+.divee-tag-pill[data-tooltip]:hover::after {
+  opacity: 1;
 }
 
 .divee-tag-pill:hover {
