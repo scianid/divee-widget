@@ -30,6 +30,7 @@ function restoreURLSearchParams() {
 // Helper: create a widget instance. The constructor calls async init() but we
 // don't await it — the widget DOM is built manually via createWidget().
 function makeWidget(serverConfig, mockAdReturnValue) {
+  delete window.__diveeWidgetLoaded;
   eval(widgetJs); // eslint-disable-line no-eval
   const widget = new DiveeWidget({ projectId: 'test-project' }); // eslint-disable-line no-undef
   widget.state.serverConfig = serverConfig;
@@ -40,6 +41,9 @@ function makeWidget(serverConfig, mockAdReturnValue) {
 }
 
 describe('isMockAdRequested()', () => {
+  beforeEach(() => {
+    delete window.__diveeWidgetLoaded;
+  });
   afterEach(() => {
     restoreURLSearchParams();
   });

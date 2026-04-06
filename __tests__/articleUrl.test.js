@@ -93,6 +93,7 @@ describe('article_url in analytics event payload (widget.js trackEvent)', () => 
         // Reset fetch mock
         fetch.mockClear();
         fetch.mockResolvedValue({ ok: true, text: async () => '' });
+        delete window.__diveeWidgetLoaded;
 
         // Load widget into the test environment
         const fs = require('fs');

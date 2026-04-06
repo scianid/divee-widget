@@ -9,6 +9,11 @@
 (function () {
     'use strict';
 
+    console.debug('[Divee] Script loaded.');
+
+    // Singleton guard — prevent duplicate initialization if the script is injected more than once
+    if (window.__diveeWidgetLoaded) return;
+
     class DiveeWidget {
         constructor(config) {
             this.config = {
@@ -2618,6 +2623,14 @@
     // Auto-initialize from script tag
     function autoInit() {
         const scripts = document.querySelectorAll('script[data-project-id]');
+
+        if (scripts.length === 0) {
+            console.debug('[Divee] No script tag with data-project-id found — skipping initialization.');
+            return;
+        }
+
+        window.__diveeWidgetLoaded = true;
+
         const urlParams = new URLSearchParams(window.location.search);
         const isDebug = urlParams.get('diveeDebug') === 'true';
 

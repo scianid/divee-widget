@@ -14,6 +14,7 @@ describe('Session Tracking', () => {
     localStorage.clear();
     sessionStorage.clear();
     fetch.mockClear();
+    delete window.__diveeWidgetLoaded;
     fetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ show_ad: false })

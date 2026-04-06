@@ -11,10 +11,12 @@ describe('DiveeWidget Core', () => {
   beforeEach(() => {
     // Clear DOM
     document.body.innerHTML = '';
-    
+
     // Reset localStorage and sessionStorage
     localStorage.clear();
     sessionStorage.clear();
+    // Reset singleton guard so each test can re-eval the widget script
+    delete window.__diveeWidgetLoaded;
     
     // Mock config
     mockConfig = {

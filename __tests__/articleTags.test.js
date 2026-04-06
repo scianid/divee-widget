@@ -33,6 +33,7 @@ describe('Article Tags Feature', () => {
 
         localStorage.clear();
         sessionStorage.clear();
+        delete window.__diveeWidgetLoaded;
         fetch.mockClear();
         fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}), text: async () => '' });
 

@@ -19,6 +19,8 @@ describe('Widget Integration Tests', () => {
     localStorage.clear();
     sessionStorage.clear();
     fetch.mockClear();
+    // Reset singleton guard so each test can re-eval the widget script
+    delete window.__diveeWidgetLoaded;
   });
 
   describe('Complete User Flow', () => {
