@@ -82,7 +82,8 @@ function getContent(articleClass) {
       "ad","ads","advertisement","sponsor","promoted","promo","banner","commercial",
       "widget","sidebar","related","recommended",
     ];
-    if (tokens.some(k => cls.includes(k) || id.includes(k) || parentCls.includes(k))) return true;
+    const matchesToken = (str) => tokens.some(k => new RegExp(`\\b${k}\\b`).test(str));
+    if (matchesToken(cls) || matchesToken(id) || matchesToken(parentCls)) return true;
 
     const links = Array.from(el.getElementsByTagName("a"));
     if (links.length === 1 && (links[0].textContent || "").trim() === text) return true;
