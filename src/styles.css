@@ -552,7 +552,10 @@
   margin-bottom: 0 !important;
   margin-right: 0 !important;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .divee-powered-by:hover {
@@ -2091,8 +2094,8 @@
   }
   
   /* Adjust powered-by font size on mobile */
-  .divee-widget-floating .divee-powered-by {
-    font-size: 12px !important;
+  .divee-powered-by {
+    font-size: 10px !important;
     padding: 0 4px !important;
   }
   
