@@ -2309,7 +2309,7 @@
                         conversation_id: this.state.conversationId,
                         position_in_chat: this.state.aiResponseCount
                     });
-                    window.open(suggestion.url, '_blank');
+                    if (suggestion.url && /^https?:\/\//i.test(suggestion.url)) window.open(suggestion.url, '_blank');
                 }
             });
 
@@ -2322,7 +2322,7 @@
                         conversation_id: this.state.conversationId,
                         position_in_chat: this.state.aiResponseCount
                     });
-                    window.open(suggestion.url, '_blank');
+                    if (suggestion.url && /^https?:\/\//i.test(suggestion.url)) window.open(suggestion.url, '_blank');
                 }
             });
 
