@@ -2620,6 +2620,19 @@
         instances: function () { return diveeInstances; }
     };
 
+    // Inject a placeholder div right after each script tag so the publisher
+    // can target it via containerSelector: '#divee-widget-placeholder'
+    function injectPlaceholders() {
+        const scripts = document.querySelectorAll('script[data-project-id]');
+        scripts.forEach((script) => {
+            if (!script.nextElementSibling || script.nextElementSibling.id !== 'divee-widget-placeholder') {
+                const placeholder = document.createElement('div');
+                placeholder.id = 'divee-widget-placeholder';
+                script.parentNode.insertBefore(placeholder, script.nextSibling);
+            }
+        });
+    }
+
     // Auto-initialize from script tag
     function autoInit() {
         console.debug('[Divee] Initializing...');
@@ -2629,6 +2642,8 @@
             console.debug('[Divee] No script tag with data-project-id found — skipping initialization.');
             return;
         }
+
+        injectPlaceholders();
 
         window.__diveeWidgetLoaded = true;
 
