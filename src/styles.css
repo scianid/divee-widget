@@ -90,6 +90,179 @@
 }
 
 /* ============================================
+   Sidebar Layout Mode
+   Closed: fixed circle button with AI icon
+   Opened: full-height slide-in panel from right/left
+   ============================================ */
+
+.divee-widget-sidebar {
+  position: fixed !important;
+  z-index: 999999 !important;
+  margin: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  background: transparent !important;
+}
+
+/* Trigger button position — collapsed */
+.divee-widget-sidebar[data-state="collapsed"] {
+  bottom: 24px !important;
+}
+.divee-widget-sidebar[data-sidebar-position="right"] {
+  right: 24px !important;
+}
+.divee-widget-sidebar[data-sidebar-position="left"] {
+  left: 24px !important;
+}
+
+/* Circle trigger button */
+.divee-sidebar-trigger {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--divee-color-primary) 0%, var(--divee-color-secondary) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.divee-sidebar-trigger:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+}
+.divee-sidebar-trigger-icon {
+  width: 26px;
+  height: 26px;
+  color: white;
+}
+
+/* Sidebar collapsed view */
+.divee-widget-sidebar .divee-collapsed {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.divee-widget-sidebar .divee-powered-by-collapsed,
+.divee-widget-sidebar .divee-tag-pills-collapsed,
+.divee-widget-sidebar .divee-search-container-collapsed {
+  display: none !important;
+}
+
+/* Expanded state — panel takes over positioning */
+.divee-widget-sidebar[data-state="expanded"] {
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 380px !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+}
+.divee-widget-sidebar[data-state="expanded"][data-sidebar-position="right"] {
+  right: 0 !important;
+  left: auto !important;
+}
+.divee-widget-sidebar[data-state="expanded"][data-sidebar-position="left"] {
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* Sidebar backdrop overlay */
+.divee-sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Sidebar expanded view — slide animation */
+.divee-widget-sidebar .divee-expanded {
+  display: none;
+  flex-direction: column;
+  width: 100% !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Slide direction based on position */
+.divee-widget-sidebar[data-sidebar-position="right"] .divee-expanded {
+  transform: translateX(100%);
+}
+.divee-widget-sidebar[data-sidebar-position="left"] .divee-expanded {
+  transform: translateX(-100%);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+}
+.divee-widget-sidebar .divee-expanded.divee-sidebar-open {
+  transform: translateX(0) !important;
+}
+
+/* Sidebar header — compact mobile-like style */
+.divee-widget-sidebar .divee-header {
+  padding: 12px 10px 8px 10px !important;
+  margin-bottom: 0 !important;
+}
+.divee-widget-sidebar .divee-header-top {
+  gap: 8px !important;
+}
+.divee-widget-sidebar .divee-header-ai-icon {
+  width: 28px !important;
+  height: 28px !important;
+}
+.divee-widget-sidebar .divee-sparkle-header-icon {
+  width: 14px !important;
+  height: 14px !important;
+}
+.divee-widget-sidebar .divee-site-favicon-header {
+  width: 28px !important;
+  height: 28px !important;
+}
+.divee-widget-sidebar .divee-title {
+  font-size: 14px !important;
+}
+.divee-widget-sidebar .divee-powered-by {
+  font-size: 10px !important;
+  padding: 0 4px !important;
+  white-space: normal !important;
+  text-align: center !important;
+  max-width: 60px !important;
+}
+.divee-widget-sidebar .divee-close {
+  font-size: 18px !important;
+  padding: 2px 6px !important;
+}
+
+/* Sidebar content fills available height */
+.divee-widget-sidebar .divee-content {
+  flex: 1 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.divee-widget-sidebar .divee-chat {
+  flex: 1 !important;
+  overflow-y: auto !important;
+}
+
+/* Mobile: full-width sidebar */
+@media (max-width: 768px) {
+  .divee-widget-sidebar[data-state="expanded"] {
+    width: 100vw !important;
+  }
+}
+
+/* ============================================
    Cubic Layout Mode
    Closed: 300×250 widget column + 300×250 ad column side by side
    Opened: stacks vertically, full-width like anchored mode

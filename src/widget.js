@@ -25,6 +25,7 @@
                 displayMode: 'anchored',
                 floatingPosition: 'bottom-right',
                 anchoredPosition: 'bottom',
+                sidebarPosition: 'right',
                 articleClass: null,
                 containerSelector: null,
                 attentionAnimation: config.attentionAnimation !== false
@@ -653,7 +654,9 @@
                 position: this.config.position
             });
 
-            this.fetchAndRenderArticleTags();
+            if (this.config.widgetMode !== 'knowledgebase') {
+                this.fetchAndRenderArticleTags();
+            }
         }
 
         async loadServerConfig() {
@@ -673,10 +676,15 @@
                     if (this.config.displayMode === 'floating') {
                         this.config.floatingPosition = serverConfig.display_position;
                         this.log('config', 'Floating position from config:', serverConfig.display_position);
+                    } else if (this.config.displayMode === 'sidebar') {
+                        this.config.sidebarPosition = ['left', 'right'].includes(serverConfig.display_position)
+                            ? serverConfig.display_position
+                            : 'right';
+                        this.log('config', 'Sidebar position from config:', this.config.sidebarPosition);
                     } else {
                         // Anchored mode: only allow 'top' or 'bottom'
-                        this.config.anchoredPosition = ['top', 'bottom'].includes(serverConfig.display_position) 
-                            ? serverConfig.display_position 
+                        this.config.anchoredPosition = ['top', 'bottom'].includes(serverConfig.display_position)
+                            ? serverConfig.display_position
                             : 'bottom';
                         this.log('config', 'Anchored position from config:', this.config.anchoredPosition);
                     }
@@ -746,6 +754,10 @@
                     // For anchored mode positions (top, bottom)
                     if (['top', 'bottom'].includes(overrideDisplayPosition)) {
                         this.config.anchoredPosition = overrideDisplayPosition;
+                    }
+                    // For sidebar mode positions (left, right)
+                    if (['left', 'right'].includes(overrideDisplayPosition)) {
+                        this.config.sidebarPosition = overrideDisplayPosition;
                     }
                     this.log('config', 'Display position overridden by URL param:', overrideDisplayPosition);
                 }
@@ -960,6 +972,10 @@
                 this.log('ui', 'Applying floating mode with position:', this.config.floatingPosition);
                 container.classList.add('divee-widget-floating');
                 container.setAttribute('data-floating-position', this.config.floatingPosition);
+            } else if (this.config.displayMode === 'sidebar') {
+                this.log('ui', 'Applying sidebar mode with position:', this.config.sidebarPosition);
+                container.classList.add('divee-widget-sidebar');
+                container.setAttribute('data-sidebar-position', this.config.sidebarPosition || 'right');
             } else if (this.config.displayMode === 'cubic') {
                 this.log('ui', 'Cubic mode');
                 container.classList.add('divee-widget-cubic');
@@ -981,7 +997,7 @@
             expandedView.style.display = 'none';
 
             // Create shared ad container - starts hidden, revealed only when an ad fills
-            const hasAds = config.show_ad && config.ad_tag_id && this.config.displayMode !== 'floating';
+            const hasAds = config.show_ad && config.ad_tag_id && this.config.displayMode !== 'floating' && this.config.displayMode !== 'sidebar';
             const showMockAd = !config.show_ad && this.isMockAdRequested();
             this.log('ads', '[MockAd] show_ad:', config.show_ad, '| ad_tag_id:', config.ad_tag_id, '| diveeMockAd param:', this.isMockAdRequested(), '| showMockAd:', showMockAd, '| hasAds:', hasAds);
             if (showMockAd) {
@@ -1048,9 +1064,17 @@
 
             const config = this.state.serverConfig || this.getDefaultConfig();
             // Hide ads in floating mode collapsed view
-            const showAd = (config.show_ad && config.ad_tag_id && this.config.displayMode !== 'floating') ? '' : 'style="display: none;"';
+            const showAd = (config.show_ad && config.ad_tag_id && this.config.displayMode !== 'floating' && this.config.displayMode !== 'sidebar') ? '' : 'style="display: none;"';
             
-            if (this.config.displayMode === 'cubic') {
+            if (this.config.displayMode === 'sidebar') {
+                view.innerHTML = `
+                    <div class="divee-sidebar-trigger">
+                        <svg class="divee-sidebar-trigger-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/>
+                        </svg>
+                    </div>
+                `;
+            } else if (this.config.displayMode === 'cubic') {
                 const placeholders = config.input_text_placeholders || [];
                 const cubicHeadline = placeholders[0] || 'Ask me anything';
                 const cubicSubline = placeholders[1] || 'Type below to start chatting';
@@ -1247,9 +1271,9 @@
             this.log('dom', 'Display mode:', this.config.displayMode);
             this.log('dom', 'Config containerSelector (from server):', this.config.containerSelector);
 
-            // For floating mode, always append to body
-            if (this.config.displayMode === 'floating') {
-                this.log('dom', 'Floating mode: appending to body');
+            // For floating and sidebar modes, always append to body
+            if (this.config.displayMode === 'floating' || this.config.displayMode === 'sidebar') {
+                this.log('dom', this.config.displayMode + ' mode: appending to body');
                 document.body.appendChild(container);
                 this.displayAdsIfNeeded();
                 return;
@@ -1594,19 +1618,39 @@
             this.state.isExpanded = true;
             this.elements.container.setAttribute('data-state', 'expanded');
 
-            // Show expanded view and trigger animation
-            this.elements.expandedView.style.display = 'block';
-            this.elements.expandedView.style.opacity = '0';
-            this.elements.expandedView.style.transform = 'translateY(10px)';
-
-            // Fade out collapsed view
-            this.elements.collapsedView.style.opacity = '0';
-
-            setTimeout(() => {
+            if (this.config.displayMode === 'sidebar') {
+                // Sidebar: show backdrop + slide panel in
                 this.elements.collapsedView.style.display = 'none';
-                this.elements.expandedView.style.opacity = '1';
-                this.elements.expandedView.style.transform = 'translateY(0)';
-            }, 150);
+                this.elements.expandedView.style.display = 'flex';
+
+                // Create backdrop if not exists
+                if (!this.elements.sidebarBackdrop) {
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'divee-sidebar-backdrop';
+                    backdrop.addEventListener('click', () => this.collapse());
+                    this.elements.container.appendChild(backdrop);
+                    this.elements.sidebarBackdrop = backdrop;
+                }
+                this.elements.sidebarBackdrop.style.display = 'block';
+                // Trigger reflow then animate
+                requestAnimationFrame(() => {
+                    this.elements.sidebarBackdrop.style.opacity = '1';
+                    this.elements.expandedView.classList.add('divee-sidebar-open');
+                });
+            } else {
+                // Default: fade in expanded view
+                this.elements.expandedView.style.display = 'block';
+                this.elements.expandedView.style.opacity = '0';
+                this.elements.expandedView.style.transform = 'translateY(10px)';
+
+                this.elements.collapsedView.style.opacity = '0';
+
+                setTimeout(() => {
+                    this.elements.collapsedView.style.display = 'none';
+                    this.elements.expandedView.style.opacity = '1';
+                    this.elements.expandedView.style.transform = 'translateY(0)';
+                }, 150);
+            }
 
             this.trackEvent('widget_expanded', { trigger: 'click' });
 
@@ -1620,19 +1664,34 @@
             this.state.isExpanded = false;
             this.elements.container.setAttribute('data-state', 'collapsed');
 
-            // Fade out expanded view
-            this.elements.expandedView.style.opacity = '0';
-            this.elements.expandedView.style.transform = 'translateY(10px)';
-
-            setTimeout(() => {
-                this.elements.expandedView.style.display = 'none';
-                this.elements.collapsedView.style.display = 'block';
-                this.elements.collapsedView.style.opacity = '0';
+            if (this.config.displayMode === 'sidebar') {
+                // Sidebar: slide panel out + hide backdrop
+                this.elements.expandedView.classList.remove('divee-sidebar-open');
+                if (this.elements.sidebarBackdrop) {
+                    this.elements.sidebarBackdrop.style.opacity = '0';
+                }
+                setTimeout(() => {
+                    this.elements.expandedView.style.display = 'none';
+                    if (this.elements.sidebarBackdrop) {
+                        this.elements.sidebarBackdrop.style.display = 'none';
+                    }
+                    this.elements.collapsedView.style.display = 'block';
+                }, 300);
+            } else {
+                // Default: fade out expanded view
+                this.elements.expandedView.style.opacity = '0';
+                this.elements.expandedView.style.transform = 'translateY(10px)';
 
                 setTimeout(() => {
-                    this.elements.collapsedView.style.opacity = '1';
-                }, 50);
-            }, 200);
+                    this.elements.expandedView.style.display = 'none';
+                    this.elements.collapsedView.style.display = 'block';
+                    this.elements.collapsedView.style.opacity = '0';
+
+                    setTimeout(() => {
+                        this.elements.collapsedView.style.opacity = '1';
+                    }, 50);
+                }, 200);
+            }
 
             this.trackEvent('widget_collapsed', {
                 time_spent: Date.now(),
@@ -1641,6 +1700,9 @@
         }
 
         async onTextAreaFocus() {
+            // Knowledgebase mode: no suggestions
+            if (this.config.widgetMode === 'knowledgebase') return;
+
             const suggestionsContainer = this.elements.expandedView.querySelector('.divee-suggestions-input');
 
             // If we already have suggestions, just show them
