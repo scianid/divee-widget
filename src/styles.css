@@ -243,6 +243,12 @@
   padding: 2px 6px !important;
 }
 
+/* Sidebar input — auto-grow up to 3 rows */
+.divee-widget-sidebar .divee-input {
+  max-height: calc(1.5em * 3 + 20px) !important; /* 3 lines + padding */
+  overflow-y: auto !important;
+}
+
 /* Sidebar content fills available height */
 .divee-widget-sidebar .divee-content {
   flex: 1 !important;
