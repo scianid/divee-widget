@@ -1101,17 +1101,17 @@
                             <span class="divee-cubic-online-dot"></span>
                             <span class="divee-cubic-online-label">Online</span>
                         </div>
-                        <div class="divee-powered-by-collapsed">
+                        ${config.white_label ? '' : `<div class="divee-powered-by-collapsed">
                             <a class="divee-powered-by" href="https://www.divee.ai" target="_blank" rel="noopener noreferrer">powered by divee.ai</a>
-                        </div>
+                        </div>`}
                     </div>
                     <div class="divee-tag-pills divee-tag-pills-collapsed"></div>
                 `;
             } else {
                 view.innerHTML = `
-                    <div class="divee-powered-by-collapsed">
+                    ${config.white_label ? '' : `<div class="divee-powered-by-collapsed">
                         <a class="divee-powered-by" href="https://www.divee.ai" target="_blank" rel="noopener noreferrer">powered by divee.ai</a>
-                    </div>
+                    </div>`}
                     <div class="divee-search-container-collapsed">
                         <div class="divee-ai-identity" aria-label="AI">
                             <svg class="divee-ai-identity-sparkle" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1214,7 +1214,7 @@
                             <span class="divee-title">${this.escapeHtml(config.client_name)}</span>
                             <span class="divee-online-badge">● Online</span>
                         </div>
-                        <a class="divee-powered-by" href="https://www.divee.ai" target="_blank" rel="noopener noreferrer">powered by divee.ai</a>
+                        ${config.white_label ? '' : '<a class="divee-powered-by" href="https://www.divee.ai" target="_blank" rel="noopener noreferrer">powered by divee.ai</a>'}
                         <button class="divee-close" aria-label="Close">✕</button>
                     </div>
                 </div>

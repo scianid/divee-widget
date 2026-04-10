@@ -74,7 +74,8 @@ Deno.serve(async (req: Request) => {
       ...(projectConfig && {
         ad_tag_id: projectConfig.ad_tag_id || null,
         override_mobile_ad_size: projectConfig.override_mobile_ad_size || null,
-        override_desktop_ad_size: projectConfig.override_desktop_ad_size || null
+        override_desktop_ad_size: projectConfig.override_desktop_ad_size || null,
+        white_label: projectConfig.white_label || false
       })
     };
 

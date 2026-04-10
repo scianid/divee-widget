@@ -46,7 +46,7 @@ export async function getProjectConfigById(projectId: string, supabase:any) {
     return withRetry(async () => {
         const { data: projectConfig, error: projectConfigError } = await supabase
             .from('project_config')
-            .select('project_id, ad_tag_id, override_mobile_ad_size, override_desktop_ad_size')
+            .select('project_id, ad_tag_id, override_mobile_ad_size, override_desktop_ad_size, white_label')
             .eq('project_id', projectId)
             .single();
 
