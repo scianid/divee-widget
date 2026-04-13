@@ -1846,6 +1846,7 @@
   object-fit: cover;
   flex-shrink: 0;
   overflow: clip;
+  margin: 0 !important;
 }
 
 /* Online badge */
