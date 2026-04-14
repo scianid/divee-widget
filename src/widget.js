@@ -44,8 +44,18 @@
                 widgetVisibleTracked: false,   // Track if widget_visible event has been fired
                 adRefreshInterval: null,       // Interval ID for auto-refreshing ads
                 articleTags: [],               // Tags fetched from /articles/tags API
-                activeTagPopup: null           // Currently open tag popup pill element
+                activeTagPopup: null,          // Currently open tag popup pill element
+                consent: null                  // null | 'granted' | 'denied' — GDPR-style localStorage consent
             };
+
+            // In-memory fallback store when consent is denied/unanswered
+            this._memStore = {};
+            // If user previously granted consent, restore it so we may use localStorage freely
+            try {
+                if (localStorage.getItem('divee_consent') === 'granted') {
+                    this.state.consent = 'granted';
+                }
+            } catch (e) { /* storage blocked */ }
 
             // Session tracking state
             this.sessionTracking = {
@@ -359,12 +369,31 @@
             }).join('');
         }
 
+        // Persisted-storage wrapper: writes to localStorage only when consent is granted,
+        // otherwise keeps the value in memory for the current page session.
+        storageGet(key) {
+            if (Object.prototype.hasOwnProperty.call(this._memStore, key)) {
+                return this._memStore[key];
+            }
+            if (this.state.consent === 'granted') {
+                try { return localStorage.getItem(key); } catch (e) { return null; }
+            }
+            return null;
+        }
+
+        storageSet(key, value) {
+            this._memStore[key] = value;
+            if (this.state.consent === 'granted') {
+                try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+            }
+        }
+
         getAnalyticsIds() {
-            // Visitor ID (Persistent)
-            let visitorId = localStorage.getItem('divee_visitor_id');
+            // Visitor ID (Persistent when consent granted, else per-page in memory)
+            let visitorId = this.storageGet('divee_visitor_id');
             if (!visitorId) {
                 visitorId = this.generateUUID();
-                localStorage.setItem('divee_visitor_id', visitorId);
+                this.storageSet('divee_visitor_id', visitorId);
             }
 
             // Session ID (Per Page Load - new conversation on each page visit)
@@ -374,7 +403,7 @@
             this.state.sessionId = sessionId;
 
             // Restore persisted visitor token (issued by /chat, proves visitor ownership)
-            const storedToken = localStorage.getItem('divee_visitor_token');
+            const storedToken = this.storageGet('divee_visitor_token');
             if (storedToken) {
                 this.state.visitorToken = storedToken;
             }
@@ -1223,6 +1252,19 @@
                     <div class="divee-chat">
                         <div class="divee-messages"></div>
           </div>
+                    <div class="divee-consent" style="display:none;" role="dialog" aria-label="Cookie consent">
+                        <svg class="divee-consent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M21.54 15.88A8 8 0 1 1 8.12 2.46"/>
+                            <circle cx="9" cy="13" r="1"/>
+                            <circle cx="14" cy="16" r="1"/>
+                            <circle cx="16" cy="10" r="1"/>
+                            <circle cx="19" cy="5" r="1"/>
+                            <circle cx="14" cy="6" r="1"/>
+                        </svg>
+                        <span class="divee-consent-text">We use cookies to enhance your experience. By continuing, you agree to our use of cookies.</span>
+                        <button type="button" class="divee-consent-accept">Accept</button>
+                        <button type="button" class="divee-consent-decline">Reject</button>
+                    </div>
                     <div class="divee-input-container">
                         <div class="divee-suggestions-input" style="display: none;">
                             <div class="divee-suggestions-list"></div>
@@ -1574,6 +1616,19 @@
             // Click anywhere on collapsed view to expand
             this.elements.collapsedView.addEventListener('click', () => this.expand());
 
+            // Consent banner buttons
+            const consentEl = this.elements.expandedView.querySelector('.divee-consent');
+            if (consentEl) {
+                consentEl.querySelector('.divee-consent-accept').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.handleConsent(true);
+                });
+                consentEl.querySelector('.divee-consent-decline').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.handleConsent(false);
+                });
+            }
+
             // Close button
             const closeButton = this.elements.expandedView.querySelector('.divee-close');
             closeButton.addEventListener('click', (e) => {
@@ -1615,9 +1670,38 @@
             });
         }
 
+        maybeShowConsent() {
+            const cfg = this.state.serverConfig;
+            if (!cfg || !cfg.ask_concent) return;
+            if (this.state.consent !== null) return;
+            const consentEl = this.elements.expandedView?.querySelector('.divee-consent');
+            if (!consentEl) return;
+            consentEl.style.display = 'flex';
+        }
+
+        handleConsent(accepted) {
+            const consentEl = this.elements.expandedView?.querySelector('.divee-consent');
+            if (accepted) {
+                this.state.consent = 'granted';
+                try { localStorage.setItem('divee_consent', 'granted'); } catch (e) { /* ignore */ }
+                // Flush in-memory values collected before consent into localStorage
+                try {
+                    for (const k of Object.keys(this._memStore)) {
+                        localStorage.setItem(k, this._memStore[k]);
+                    }
+                } catch (e) { /* ignore */ }
+            } else {
+                this.state.consent = 'denied';
+                // Intentionally do not persist anything — memory-only for this page load
+            }
+            if (consentEl) consentEl.style.display = 'none';
+            this.trackEvent('consent_decision', { accepted });
+        }
+
         expand() {
             this.state.isExpanded = true;
             this.elements.container.setAttribute('data-state', 'expanded');
+            this.maybeShowConsent();
 
             if (this.config.displayMode === 'sidebar') {
                 // Sidebar: show backdrop + slide panel in
@@ -2011,7 +2095,7 @@
             const visitorToken = response.headers.get('X-Visitor-Token');
             if (visitorToken) {
                 this.state.visitorToken = visitorToken;
-                localStorage.setItem('divee_visitor_token', visitorToken);
+                this.storageSet('divee_visitor_token', visitorToken);
             }
 
             const contentType = response.headers.get('content-type') || '';

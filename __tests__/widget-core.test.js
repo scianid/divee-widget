@@ -191,6 +191,8 @@ describe('DiveeWidget Core', () => {
 
     test('should restore visitorToken from localStorage on getAnalyticsIds', () => {
       const storedToken = 'visitor-abc|proj-123|9999999999999|cafebabe';
+      // Consent must be granted for the widget to read persisted visitor data
+      localStorage.setItem('divee_consent', 'granted');
       localStorage.setItem('divee_visitor_token', storedToken);
 
       const widgetJs = require('fs').readFileSync('./src/widget.js', 'utf8');
@@ -200,6 +202,179 @@ describe('DiveeWidget Core', () => {
       widget.getAnalyticsIds();
 
       expect(widget.state.visitorToken).toBe(storedToken);
+    });
+
+    test('should NOT read visitorToken from localStorage when consent not granted', () => {
+      // Token present in localStorage but no consent — widget must ignore it
+      localStorage.setItem('divee_visitor_token', 'leaked-token');
+
+      const widgetJs = require('fs').readFileSync('./src/widget.js', 'utf8');
+      eval(widgetJs);
+
+      const widget = new DiveeWidget(mockConfig);
+      widget.getAnalyticsIds();
+
+      expect(widget.state.visitorToken).toBeFalsy();
+    });
+  });
+
+  describe('Cookie Consent', () => {
+    const loadWidget = () => {
+      const widgetJs = require('fs').readFileSync('./src/widget.js', 'utf8');
+      eval(widgetJs);
+      return new DiveeWidget(mockConfig);
+    };
+
+    test('initial consent is null when nothing stored', () => {
+      const widget = loadWidget();
+      expect(widget.state.consent).toBeNull();
+    });
+
+    test('initial consent restored from localStorage when previously granted', () => {
+      localStorage.setItem('divee_consent', 'granted');
+      const widget = loadWidget();
+      expect(widget.state.consent).toBe('granted');
+    });
+
+    test('previously declined consent does NOT persist across page loads', () => {
+      // Simulate a prior decline (which by contract never wrote anything)
+      const widget = loadWidget();
+      expect(widget.state.consent).toBeNull();
+    });
+
+    test('storageSet writes to memory only when consent is null', () => {
+      const widget = loadWidget();
+      widget.storageSet('divee_visitor_id', 'mem-id');
+      expect(widget._memStore.divee_visitor_id).toBe('mem-id');
+      expect(localStorage.getItem('divee_visitor_id')).toBeNull();
+    });
+
+    test('storageSet writes to memory only when consent is denied', () => {
+      const widget = loadWidget();
+      widget.state.consent = 'denied';
+      widget.storageSet('divee_visitor_id', 'mem-id');
+      expect(widget._memStore.divee_visitor_id).toBe('mem-id');
+      expect(localStorage.getItem('divee_visitor_id')).toBeNull();
+    });
+
+    test('storageSet writes to localStorage when consent is granted', () => {
+      localStorage.setItem('divee_consent', 'granted');
+      const widget = loadWidget();
+      widget.storageSet('divee_visitor_id', 'persisted-id');
+      expect(localStorage.getItem('divee_visitor_id')).toBe('persisted-id');
+      expect(widget._memStore.divee_visitor_id).toBe('persisted-id');
+    });
+
+    test('storageGet prefers memory over localStorage', () => {
+      localStorage.setItem('divee_consent', 'granted');
+      localStorage.setItem('divee_visitor_id', 'from-ls');
+      const widget = loadWidget();
+      widget._memStore.divee_visitor_id = 'from-mem';
+      expect(widget.storageGet('divee_visitor_id')).toBe('from-mem');
+    });
+
+    test('storageGet ignores localStorage when consent not granted', () => {
+      // Use a key the widget itself never touches, so memStore stays empty
+      localStorage.setItem('divee_unrelated_key', 'leaked-value');
+      const widget = loadWidget();
+      expect(widget.storageGet('divee_unrelated_key')).toBeNull();
+    });
+
+    test('getAnalyticsIds persists newly-minted visitor ID when consent granted', () => {
+      localStorage.setItem('divee_consent', 'granted');
+      const widget = loadWidget();
+      widget.getAnalyticsIds();
+      expect(localStorage.getItem('divee_visitor_id')).toBe(widget.state.visitorId);
+    });
+
+    test('getAnalyticsIds keeps visitor ID in memory only when consent denied', () => {
+      const widget = loadWidget();
+      widget.state.consent = 'denied';
+      widget.getAnalyticsIds();
+      expect(widget.state.visitorId).toBeTruthy();
+      expect(localStorage.getItem('divee_visitor_id')).toBeNull();
+      expect(widget._memStore.divee_visitor_id).toBe(widget.state.visitorId);
+    });
+
+    test('maybeShowConsent is a no-op when ask_concent is false', () => {
+      const widget = loadWidget();
+      widget.state.serverConfig = { ask_concent: false };
+      widget.elements.expandedView = document.createElement('div');
+      widget.elements.expandedView.innerHTML = '<div class="divee-consent" style="display:none;"></div>';
+      widget.maybeShowConsent();
+      const consentEl = widget.elements.expandedView.querySelector('.divee-consent');
+      expect(consentEl.style.display).toBe('none');
+    });
+
+    test('maybeShowConsent shows banner when ask_concent=true and undecided', () => {
+      const widget = loadWidget();
+      widget.state.serverConfig = { ask_concent: true };
+      widget.elements.expandedView = document.createElement('div');
+      widget.elements.expandedView.innerHTML = '<div class="divee-consent" style="display:none;"></div>';
+      widget.maybeShowConsent();
+      const consentEl = widget.elements.expandedView.querySelector('.divee-consent');
+      expect(consentEl.style.display).toBe('flex');
+    });
+
+    test('maybeShowConsent does not reshow when already decided', () => {
+      const widget = loadWidget();
+      widget.state.serverConfig = { ask_concent: true };
+      widget.state.consent = 'denied';
+      widget.elements.expandedView = document.createElement('div');
+      widget.elements.expandedView.innerHTML = '<div class="divee-consent" style="display:none;"></div>';
+      widget.maybeShowConsent();
+      const consentEl = widget.elements.expandedView.querySelector('.divee-consent');
+      expect(consentEl.style.display).toBe('none');
+    });
+
+    test('handleConsent(true) persists consent and flushes memory store', () => {
+      const widget = loadWidget();
+      widget.elements.expandedView = document.createElement('div');
+      widget.elements.expandedView.innerHTML = '<div class="divee-consent" style="display:flex;"></div>';
+      widget.trackEvent = jest.fn();
+      widget._memStore.divee_visitor_id = 'mem-id';
+      widget._memStore.divee_visitor_token = 'mem-token';
+
+      widget.handleConsent(true);
+
+      expect(widget.state.consent).toBe('granted');
+      expect(localStorage.getItem('divee_consent')).toBe('granted');
+      expect(localStorage.getItem('divee_visitor_id')).toBe('mem-id');
+      expect(localStorage.getItem('divee_visitor_token')).toBe('mem-token');
+      expect(widget.elements.expandedView.querySelector('.divee-consent').style.display).toBe('none');
+      expect(widget.trackEvent).toHaveBeenCalledWith('consent_decision', { accepted: true });
+    });
+
+    test('handleConsent(false) keeps values in memory only', () => {
+      const widget = loadWidget();
+      widget.elements.expandedView = document.createElement('div');
+      widget.elements.expandedView.innerHTML = '<div class="divee-consent" style="display:flex;"></div>';
+      widget.trackEvent = jest.fn();
+      widget._memStore.divee_visitor_id = 'mem-id';
+
+      widget.handleConsent(false);
+
+      expect(widget.state.consent).toBe('denied');
+      expect(localStorage.getItem('divee_consent')).toBeNull();
+      expect(localStorage.getItem('divee_visitor_id')).toBeNull();
+      expect(widget._memStore.divee_visitor_id).toBe('mem-id');
+      expect(widget.elements.expandedView.querySelector('.divee-consent').style.display).toBe('none');
+      expect(widget.trackEvent).toHaveBeenCalledWith('consent_decision', { accepted: false });
+    });
+
+    test('after granting consent, subsequent storageSet writes to localStorage', () => {
+      const widget = loadWidget();
+      widget.elements.expandedView = document.createElement('div');
+      widget.elements.expandedView.innerHTML = '<div class="divee-consent"></div>';
+      widget.trackEvent = jest.fn();
+
+      widget.storageSet('divee_visitor_token', 'tok-1');
+      expect(localStorage.getItem('divee_visitor_token')).toBeNull();
+
+      widget.handleConsent(true);
+
+      widget.storageSet('divee_visitor_token', 'tok-2');
+      expect(localStorage.getItem('divee_visitor_token')).toBe('tok-2');
     });
   });
 
