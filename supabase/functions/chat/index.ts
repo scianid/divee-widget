@@ -40,8 +40,61 @@ import { getProjectAiSettings } from "../_shared/dao/projectAiSettingsDao.ts";
 import { generateEmbedding } from "../_shared/embeddingService.ts";
 import { searchSimilarChunks } from "../_shared/dao/ragDocumentDao.ts";
 
-// @ts-ignore
-Deno.serve(async (req: Request) => {
+// ─── Dependency injection seam ────────────────────────────────────────────
+// `chatHandler` takes a `ChatDeps` object so unit tests can stub external
+// services (OpenAI, Supabase DAOs, rate limiter, visitor-token HMAC, RAG
+// embeddings). Production wires the real implementations below via `realDeps`
+// and calls the handler from Deno.serve. Tests construct their own deps and
+// call `chatHandler` directly — no network, no env setup beyond what Deno
+// itself needs.
+export interface ChatDeps {
+  supabaseClient: typeof supabaseClient;
+  getProjectById: typeof getProjectById;
+  getProjectAiSettings: typeof getProjectAiSettings;
+  checkRateLimit: typeof checkRateLimit;
+  getArticleById: typeof getArticleById;
+  insertArticle: typeof insertArticle;
+  updateArticleImage: typeof updateArticleImage;
+  getOrCreateConversation: typeof getOrCreateConversation;
+  appendMessagesToConversation: typeof appendMessagesToConversation;
+  updateCacheAnswer: typeof updateCacheAnswer;
+  insertFreeformQuestion: typeof insertFreeformQuestion;
+  updateFreeformAnswer: typeof updateFreeformAnswer;
+  insertTokenUsage: typeof insertTokenUsage;
+  logEvent: typeof logEvent;
+  streamAnswer: typeof streamAnswer;
+  readStreamAndCollectAnswer: typeof readStreamAndCollectAnswer;
+  generateEmbedding: typeof generateEmbedding;
+  searchSimilarChunks: typeof searchSimilarChunks;
+  issueVisitorToken: typeof issueVisitorToken;
+}
+
+export const realChatDeps: ChatDeps = {
+  supabaseClient,
+  getProjectById,
+  getProjectAiSettings,
+  checkRateLimit,
+  getArticleById,
+  insertArticle,
+  updateArticleImage,
+  getOrCreateConversation,
+  appendMessagesToConversation,
+  updateCacheAnswer,
+  insertFreeformQuestion,
+  updateFreeformAnswer,
+  insertTokenUsage,
+  logEvent,
+  streamAnswer,
+  readStreamAndCollectAnswer,
+  generateEmbedding,
+  searchSimilarChunks,
+  issueVisitorToken,
+};
+
+export async function chatHandler(
+  req: Request,
+  deps: ChatDeps = realChatDeps,
+): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -82,12 +135,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabase = await supabaseClient();
+    const supabase = await deps.supabaseClient();
 
     // Run project lookup and AI settings fetch in parallel
     const [project, aiSettings] = await Promise.all([
-      getProjectById(projectId, supabase),
-      getProjectAiSettings(supabase, projectId).catch((err) => {
+      deps.getProjectById(projectId, supabase),
+      deps.getProjectAiSettings(supabase, projectId).catch((err) => {
         // Non-fatal: if settings can't be loaded, proceed without customization
         console.error(
           "chat: failed to load ai settings, proceeding without customization",
@@ -110,7 +163,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // H-2 fix: enforce per-visitor and per-project rate limits before hitting the AI
-    const rateLimit = await checkRateLimit(
+    const rateLimit = await deps.checkRateLimit(
       supabase,
       "chat",
       visitor_id,
@@ -138,14 +191,14 @@ Deno.serve(async (req: Request) => {
 
     // Ensure article exists first (required for conversation foreign key)
     // In knowledgebase mode, create a lightweight placeholder article per page URL
-    let article = await getArticleById(url, projectId, supabase);
+    let article = await deps.getArticleById(url, projectId, supabase);
     if (!article) {
       console.log("chat: creating new article", {
         url,
         projectId,
         isKnowledgebase,
       });
-      await insertArticle(
+      await deps.insertArticle(
         url,
         title,
         isKnowledgebase ? "" : content,
@@ -153,7 +206,7 @@ Deno.serve(async (req: Request) => {
         supabase,
         metadata,
       );
-      article = await getArticleById(url, projectId, supabase);
+      article = await deps.getArticleById(url, projectId, supabase);
     } else if (!isKnowledgebase) {
       // Update existing article with image if missing (article mode only)
       const needsImageUpdate = !article.image_url && metadata &&
@@ -162,7 +215,7 @@ Deno.serve(async (req: Request) => {
       if (needsImageUpdate) {
         console.log("chat: updating article with image");
         const imageUrl = metadata.og_image || metadata.image_url;
-        await updateArticleImage(article, imageUrl!, supabase);
+        await deps.updateArticleImage(article, imageUrl!, supabase);
         article.image_url = imageUrl;
       }
     }
@@ -177,7 +230,7 @@ Deno.serve(async (req: Request) => {
       hasArticle: !!article,
     });
 
-    const conversation = await getOrCreateConversation(
+    const conversation = await deps.getOrCreateConversation(
       supabase,
       projectId,
       articleUniqueId,
@@ -210,7 +263,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Track Event (Async)
-    logEvent(
+    deps.logEvent(
       {
         projectId,
         visitorId: visitor_id,
@@ -232,7 +285,7 @@ Deno.serve(async (req: Request) => {
       : "custom";
 
     // Track question_asked event
-    logEvent({
+    deps.logEvent({
       projectId,
       visitorId: visitor_id,
       sessionId: session_id,
@@ -354,8 +407,8 @@ Deno.serve(async (req: Request) => {
     if (aiSettings || isKnowledgebase) {
       let ragChunks: string[] | undefined;
       try {
-        const questionEmbedding = await generateEmbedding(question);
-        const matches = await searchSimilarChunks(
+        const questionEmbedding = await deps.generateEmbedding(question);
+        const matches = await deps.searchSimilarChunks(
           supabase,
           projectId,
           questionEmbedding,
@@ -387,7 +440,7 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    const { response: aiResponse, model: aiModel } = await streamAnswer(
+    const { response: aiResponse, model: aiModel } = await deps.streamAnswer(
       aiMessages,
       customization,
     );
@@ -399,7 +452,7 @@ Deno.serve(async (req: Request) => {
     const [clientStream, cacheStream] = aiResponse.body.tee();
 
     // Collect answer and store in conversation
-    readStreamAndCollectAnswer(cacheStream)
+    deps.readStreamAndCollectAnswer(cacheStream)
       .then(async (result) => {
         const { answer, tokenUsage } = result;
         console.log("chat: collected answer, appending to conversation", {
@@ -413,7 +466,7 @@ Deno.serve(async (req: Request) => {
         // Track token usage (async, don't block)
         if (tokenUsage) {
           console.log("chat: inserting token usage", tokenUsage);
-          insertTokenUsage(supabase, {
+          deps.insertTokenUsage(supabase, {
             projectId,
             conversationId: conversation.id,
             visitorId: visitor_id,
@@ -449,7 +502,7 @@ Deno.serve(async (req: Request) => {
         };
 
         // Append to conversation
-        const success = await appendMessagesToConversation(
+        const success = await deps.appendMessagesToConversation(
           supabase,
           conversation.id,
           userMessage,
@@ -465,7 +518,7 @@ Deno.serve(async (req: Request) => {
 
         // Also update cache if it's a suggestion
         if (cachedItem) {
-          await updateCacheAnswer(
+          await deps.updateCacheAnswer(
             supabase,
             article.unique_id,
             questionId,
@@ -474,7 +527,7 @@ Deno.serve(async (req: Request) => {
           );
         } else if (allowFreeForm) {
           // Store in freeform_qa for backwards compatibility
-          const freeformId = await insertFreeformQuestion(
+          const freeformId = await deps.insertFreeformQuestion(
             supabase,
             projectId,
             article.unique_id,
@@ -483,7 +536,7 @@ Deno.serve(async (req: Request) => {
             session_id,
           );
           if (freeformId) {
-            await updateFreeformAnswer(supabase, freeformId, answer);
+            await deps.updateFreeformAnswer(supabase, freeformId, answer);
           }
         }
       })
@@ -496,7 +549,7 @@ Deno.serve(async (req: Request) => {
     let visitorToken = "";
     try {
       if (visitor_id && projectId) {
-        visitorToken = await issueVisitorToken(visitor_id, projectId);
+        visitorToken = await deps.issueVisitorToken(visitor_id, projectId);
       }
     } catch (e) {
       console.error("chat: failed to issue visitor token", e);
@@ -517,4 +570,7 @@ Deno.serve(async (req: Request) => {
     console.error("chat: unhandled error", error);
     return errorResp("Internal server error", 500);
   }
-});
+}
+
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
+Deno.serve((req: Request) => chatHandler(req));

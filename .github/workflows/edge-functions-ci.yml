@@ -95,6 +95,10 @@ jobs:
             exit 1
           fi
 
+      - name: Run Deno tests
+        working-directory: supabase/functions
+        run: deno test --allow-env --allow-net=127.0.0.1 _tests/
+
   # ─────────────────────────────────────────────────────────────────────────
   # 2. DEPLOY — only on push to main, only if security passed,
   #    only after a human approves the protected `production-edge-functions` env.
