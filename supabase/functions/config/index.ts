@@ -5,8 +5,27 @@ import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { errorResp, successRespWithCache } from "../_shared/responses.ts";
 import { getProjectById, getProjectConfigById } from "../_shared/dao/projectDao.ts";
 
-// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
-Deno.serve(async (req: Request) => {
+// ─── Dependency injection seam ────────────────────────────────────────────
+// `configHandler` takes a `ConfigDeps` object so unit tests can stub the
+// Supabase DAO calls without touching the network. Production wires the
+// real implementations below via `realConfigDeps`. Tests construct their
+// own stubs and call `configHandler` directly. Same pattern as chat.
+export interface ConfigDeps {
+  supabaseClient: typeof supabaseClient;
+  getProjectById: typeof getProjectById;
+  getProjectConfigById: typeof getProjectConfigById;
+}
+
+export const realConfigDeps: ConfigDeps = {
+  supabaseClient,
+  getProjectById,
+  getProjectConfigById,
+};
+
+export async function configHandler(
+  req: Request,
+  deps: ConfigDeps = realConfigDeps,
+): Promise<Response> {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -23,12 +42,12 @@ Deno.serve(async (req: Request) => {
       return errorResp("Missing projectId", 400);
     }
 
-    const supabase = await supabaseClient();
+    const supabase = await deps.supabaseClient();
 
     // Fetch project and project_config in parallel
     const [project, projectConfig] = await Promise.all([
-      getProjectById(projectId, supabase),
-      getProjectConfigById(projectId, supabase),
+      deps.getProjectById(projectId, supabase),
+      deps.getProjectConfigById(projectId, supabase),
     ]);
 
     const requestUrl = getRequestOriginUrl(req);
@@ -95,4 +114,7 @@ Deno.serve(async (req: Request) => {
     console.error("Error:", error);
     return errorResp("Internal Server Error", 500);
   }
-});
+}
+
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
+Deno.serve((req: Request) => configHandler(req));
