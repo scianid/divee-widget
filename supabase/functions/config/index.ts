@@ -2,8 +2,9 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
-import { errorResp, successRespWithCache } from "../_shared/responses.ts";
+import { errorResp, successRespWithCache, tooManyRequestsResp } from "../_shared/responses.ts";
 import { getProjectById, getProjectConfigById } from "../_shared/dao/projectDao.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
 
 // ─── Dependency injection seam ────────────────────────────────────────────
 // `configHandler` takes a `ConfigDeps` object so unit tests can stub the
@@ -14,12 +15,14 @@ export interface ConfigDeps {
   supabaseClient: typeof supabaseClient;
   getProjectById: typeof getProjectById;
   getProjectConfigById: typeof getProjectConfigById;
+  checkRateLimit: typeof checkRateLimit;
 }
 
 export const realConfigDeps: ConfigDeps = {
   supabaseClient,
   getProjectById,
   getProjectConfigById,
+  checkRateLimit,
 };
 
 export async function configHandler(
@@ -71,6 +74,15 @@ export async function configHandler(
         projectId,
       });
       return errorResp("Origin not allowed", 403);
+    }
+
+    // Rate-limit per project (SECURITY_AUDIT_TODO item 2). Runs AFTER
+    // origin check so unauthorized traffic never consumes the quota.
+    // visitor_id is unknown at config time (called on initial widget
+    // mount), so we only check the project-level bucket.
+    const rateLimit = await deps.checkRateLimit(supabase, "config", null, projectId);
+    if (rateLimit.limited) {
+      return tooManyRequestsResp(rateLimit.retryAfterSeconds);
     }
 
     // Map database fields to widget config format

@@ -101,6 +101,7 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
     supabaseClient: () => Promise.resolve({} as unknown),
     getProjectById: () => Promise.resolve(fakeProject()),
     getProjectConfigById: () => Promise.resolve(fakeProjectConfig()),
+    checkRateLimit: () => Promise.resolve({ limited: false }),
     ...overrides,
   };
 }
@@ -229,6 +230,52 @@ Deno.test("config: missing project_config row returns widget config without ad f
   assertEquals(body.ad_tag_id, undefined);
   assertEquals(body.override_mobile_ad_size, undefined);
   assertEquals(body.white_label, undefined);
+});
+
+// ── Rate limiting (SECURITY_AUDIT_TODO item 2) ───────────────────────────
+
+Deno.test("config: rate-limit 429 has Retry-After header and JSON body", async () => {
+  const deps = makeDeps({
+    checkRateLimit: () => Promise.resolve({ limited: true, retryAfterSeconds: 42 }),
+  });
+  const res = await configHandler(req({ projectId: PROJECT_ID }), deps);
+  assertEquals(res.status, 429);
+  assertEquals(res.headers.get("Retry-After"), "42");
+  const body = await res.json();
+  assertEquals(body.error, "Too many requests");
+  assertEquals(body.retryAfter, 42);
+});
+
+Deno.test("config: rate-limit runs AFTER origin check (unauthorized traffic must not consume quota)", async () => {
+  // Regression guard. If someone reorders the handler and rate-limits
+  // before origin-checks, an attacker can DoS a project's config budget
+  // from a foreign origin without ever producing a real response.
+  let rateLimitCalled = false;
+  const deps = makeDeps({
+    getProjectById: () => Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
+    checkRateLimit: () => {
+      rateLimitCalled = true;
+      return Promise.resolve({ limited: false });
+    },
+  });
+  const res = await configHandler(req({ projectId: PROJECT_ID }), deps);
+  assertEquals(res.status, 403);
+  assertEquals(rateLimitCalled, false);
+});
+
+Deno.test("config: rate-limit called with (endpoint='config', visitorId=null, projectId)", async () => {
+  let capturedArgs: unknown[] = [];
+  const deps = makeDeps({
+    checkRateLimit: (...args: unknown[]) => {
+      capturedArgs = args;
+      return Promise.resolve({ limited: false });
+    },
+  });
+  await configHandler(req({ projectId: PROJECT_ID }), deps);
+  // [supabase, endpoint, visitorId, projectId]
+  assertEquals(capturedArgs[1], "config");
+  assertEquals(capturedArgs[2], null);
+  assertEquals(capturedArgs[3], PROJECT_ID);
 });
 
 Deno.test("config: show_ad=false from the DB is respected (not defaulted back to true)", async () => {

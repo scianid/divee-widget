@@ -34,6 +34,27 @@ export function successResp(
   );
 }
 
+/**
+ * 429 Too Many Requests with a Retry-After header. Used by every
+ * rate-limited edge function so the shape is consistent across endpoints.
+ * Body is `{error, retryAfter}` — the `retryAfter` field mirrors the
+ * header so clients that don't read headers (analytics beacons, for one)
+ * can still back off.
+ */
+export function tooManyRequestsResp(retryAfterSeconds: number) {
+  return new Response(
+    JSON.stringify({ error: "Too many requests", retryAfter: retryAfterSeconds }),
+    {
+      status: 429,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Retry-After": String(retryAfterSeconds),
+      },
+    },
+  );
+}
+
 export function successRespWithCache(
   body: object = {},
   maxAge = 300,

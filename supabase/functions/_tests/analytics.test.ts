@@ -92,6 +92,7 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
   return {
     supabaseClient: () => Promise.resolve({} as unknown),
     getProjectById: () => Promise.resolve(fakeProject()),
+    checkRateLimit: () => Promise.resolve({ limited: false }),
     fetchFn: () => Promise.resolve(new Response("{}", { status: 200 })),
     ...overrides,
   };
@@ -180,6 +181,78 @@ Deno.test("analytics: origin not in allowed_urls returns 403", async () => {
     deps,
   );
   assertEquals(res.status, 403);
+});
+
+// ── Rate limiting (SECURITY_AUDIT_TODO item 2) ───────────────────────────
+
+Deno.test("analytics: rate-limit 429 has Retry-After header and does NOT forward", async () => {
+  let fetchCalled = false;
+  const deps = makeDeps({
+    checkRateLimit: () => Promise.resolve({ limited: true, retryAfterSeconds: 15 }),
+    fetchFn: () => {
+      fetchCalled = true;
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    },
+  });
+  const res = await analyticsHandler(
+    postEvent({ project_id: PROJECT_ID }),
+    deps,
+  );
+  assertEquals(res.status, 429);
+  assertEquals(res.headers.get("Retry-After"), "15");
+  // Critical: the whole point of rate-limiting analytics is to protect
+  // the upstream budget. A 429 here must NOT translate into an outbound
+  // fetch to the secondary project.
+  assertEquals(fetchCalled, false);
+});
+
+Deno.test("analytics: rate-limit runs AFTER origin check", async () => {
+  let rateLimitCalled = false;
+  const deps = makeDeps({
+    getProjectById: () => Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
+    checkRateLimit: () => {
+      rateLimitCalled = true;
+      return Promise.resolve({ limited: false });
+    },
+  });
+  const res = await analyticsHandler(
+    postEvent({ project_id: PROJECT_ID }),
+    deps,
+  );
+  assertEquals(res.status, 403);
+  assertEquals(rateLimitCalled, false);
+});
+
+Deno.test("analytics: rate-limit pulls visitor_id from single event body", async () => {
+  let capturedVisitorId: unknown = "unset";
+  const deps = makeDeps({
+    checkRateLimit: (_sb: unknown, _ep: string, visitorId: unknown) => {
+      capturedVisitorId = visitorId;
+      return Promise.resolve({ limited: false });
+    },
+  });
+  await analyticsHandler(
+    postEvent({ project_id: PROJECT_ID, visitor_id: "visitor-xyz" }),
+    deps,
+  );
+  assertEquals(capturedVisitorId, "visitor-xyz");
+});
+
+Deno.test("analytics: rate-limit pulls visitor_id from batch[0] body", async () => {
+  let capturedVisitorId: unknown = "unset";
+  const deps = makeDeps({
+    checkRateLimit: (_sb: unknown, _ep: string, visitorId: unknown) => {
+      capturedVisitorId = visitorId;
+      return Promise.resolve({ limited: false });
+    },
+  });
+  await analyticsHandler(
+    postEvent({
+      batch: [{ project_id: PROJECT_ID, visitor_id: "visitor-from-batch" }],
+    }),
+    deps,
+  );
+  assertEquals(capturedVisitorId, "visitor-from-batch");
 });
 
 // ── Proxy configuration ──────────────────────────────────────────────────

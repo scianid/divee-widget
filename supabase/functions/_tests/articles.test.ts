@@ -83,6 +83,7 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
     getSourceArticleTags: () => Promise.resolve([]),
     getArticleTagsByTagValues: () => Promise.resolve([]),
     getArticlesByIds: () => Promise.resolve([]),
+    checkRateLimit: () => Promise.resolve({ limited: false }),
     ...overrides,
   };
 }
@@ -140,6 +141,56 @@ Deno.test("articles: unknown route returns 404", async () => {
     makeDeps(),
   );
   assertEquals(res.status, 404);
+});
+
+// ── Rate limiting (SECURITY_AUDIT_TODO item 2) ───────────────────────────
+
+Deno.test("articles: rate-limit 429 has Retry-After header", async () => {
+  const deps = makeDeps({
+    checkRateLimit: () => Promise.resolve({ limited: true, retryAfterSeconds: 30 }),
+  });
+  const res = await articlesHandler(
+    req("tags", { projectId: PROJECT_ID, articleId: ARTICLE_ID }),
+    deps,
+  );
+  assertEquals(res.status, 429);
+  assertEquals(res.headers.get("Retry-After"), "30");
+});
+
+Deno.test("articles: rate-limit runs AFTER origin check", async () => {
+  // Regression guard. Foreign origins must not consume the project quota.
+  let rateLimitCalled = false;
+  const deps = makeDeps({
+    getProjectForArticlesAuth: () =>
+      Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
+    checkRateLimit: () => {
+      rateLimitCalled = true;
+      return Promise.resolve({ limited: false });
+    },
+  });
+  const res = await articlesHandler(
+    req("tags", { projectId: PROJECT_ID, articleId: ARTICLE_ID }),
+    deps,
+  );
+  assertEquals(res.status, 403);
+  assertEquals(rateLimitCalled, false);
+});
+
+Deno.test("articles: rate-limit called with endpoint='articles'", async () => {
+  let capturedEndpoint: unknown = null;
+  const deps = makeDeps({
+    checkRateLimit: (_sb: unknown, endpoint: string) => {
+      capturedEndpoint = endpoint;
+      return Promise.resolve({ limited: false });
+    },
+    getArticleTagsByArticleId: () =>
+      Promise.resolve([{ tag: "x", tag_type: "person", confidence: 1 }]),
+  });
+  await articlesHandler(
+    req("tags", { projectId: PROJECT_ID, articleId: ARTICLE_ID }),
+    deps,
+  );
+  assertEquals(capturedEndpoint, "articles");
 });
 
 Deno.test("articles: DAO throw bubbles up to 500", async () => {

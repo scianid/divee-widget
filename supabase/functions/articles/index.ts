@@ -2,7 +2,11 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
-import { errorResp as sharedErrorResp, successRespWithCache } from "../_shared/responses.ts";
+import {
+  errorResp as sharedErrorResp,
+  successRespWithCache,
+  tooManyRequestsResp,
+} from "../_shared/responses.ts";
 import {
   getArticlesByIds,
   getArticlesByTag,
@@ -11,6 +15,7 @@ import {
   getProjectForArticlesAuth,
   getSourceArticleTags,
 } from "../_shared/dao/articleDao.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
 
 const TAG_WEIGHTS: Record<string, number> = {
   person: 2.0,
@@ -39,6 +44,7 @@ export interface ArticlesDeps {
   getSourceArticleTags: typeof getSourceArticleTags;
   getArticleTagsByTagValues: typeof getArticleTagsByTagValues;
   getArticlesByIds: typeof getArticlesByIds;
+  checkRateLimit: typeof checkRateLimit;
 }
 
 export const realArticlesDeps: ArticlesDeps = {
@@ -49,6 +55,7 @@ export const realArticlesDeps: ArticlesDeps = {
   getSourceArticleTags,
   getArticleTagsByTagValues,
   getArticlesByIds,
+  checkRateLimit,
 };
 
 export async function articlesHandler(
@@ -93,6 +100,13 @@ export async function articlesHandler(
         projectId,
       });
       return errorResp("Origin not allowed", 403);
+    }
+
+    // Rate-limit per project (SECURITY_AUDIT_TODO item 2). Runs AFTER
+    // origin check so unauthorized traffic doesn't consume the quota.
+    const rateLimit = await deps.checkRateLimit(supabase, "articles", null, projectId);
+    if (rateLimit.limited) {
+      return tooManyRequestsResp(rateLimit.retryAfterSeconds);
     }
 
     const surrogateKey = `articles-${projectId}`;

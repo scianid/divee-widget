@@ -43,7 +43,7 @@ auditor's benefit.
 - **SOC2**: CC6.1
 - **Effort**: ~30 min. The refactor is mechanical.
 
-### [ ] 2. Rate-limit `/config`, `/analytics`, `/articles`
+### [x] 2. Rate-limit `/config`, `/analytics`, `/articles`
 
 - **What**: `_shared/rateLimit.ts` only gates `chat` (20/visitor,
   500/project) and `suggestions` (5/200). The other public endpoints

@@ -3,6 +3,8 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { getProjectById } from "../_shared/dao/projectDao.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
+import { tooManyRequestsResp } from "../_shared/responses.ts";
 
 // analytics_impressions and analytics_events tables are deprecated.
 // This function now reverse-proxies all analytics traffic to the secondary
@@ -17,12 +19,14 @@ import { getProjectById } from "../_shared/dao/projectDao.ts";
 export interface AnalyticsDeps {
   supabaseClient: typeof supabaseClient;
   getProjectById: typeof getProjectById;
+  checkRateLimit: typeof checkRateLimit;
   fetchFn: typeof fetch;
 }
 
 export const realAnalyticsDeps: AnalyticsDeps = {
   supabaseClient,
   getProjectById,
+  checkRateLimit,
   fetchFn: fetch,
 };
 
@@ -81,6 +85,20 @@ export async function analyticsHandler(
         projectId,
       });
       return jsonResp({ error: "Origin not allowed" }, 403);
+    }
+
+    // Rate-limit per project + visitor (SECURITY_AUDIT_TODO item 2). Runs
+    // AFTER origin check so unauthorized traffic doesn't consume the quota
+    // and BEFORE the outbound fetch so the secondary project's budget is
+    // protected even when this function is the bottleneck. visitor_id comes
+    // from the event body (single event) or the first event in a batch.
+    const visitorId = (body.visitor_id as string | undefined) ||
+      (Array.isArray(body.batch) && body.batch.length > 0
+        ? (body.batch[0] as Record<string, unknown>).visitor_id as string | undefined
+        : undefined);
+    const rateLimit = await deps.checkRateLimit(supabase, "analytics", visitorId, projectId);
+    if (rateLimit.limited) {
+      return tooManyRequestsResp(rateLimit.retryAfterSeconds);
     }
 
     // Forward to secondary project's analytics endpoint
