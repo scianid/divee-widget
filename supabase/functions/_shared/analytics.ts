@@ -23,7 +23,7 @@ export async function logEvent(
   if (!ctx.projectId) return;
 
   try {
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const analyticsUrl = Deno.env.get("ANALYTICS_PROXY_URL");
     if (!analyticsUrl) {
       console.warn(
@@ -33,7 +33,7 @@ export async function logEvent(
       return;
     }
 
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const apiKey = Deno.env.get("CONFIG_BYPASS_KEY");
 
     console.log("Analytics: shipping event", {
@@ -90,7 +90,7 @@ export async function logEventBatch(
   if (rows.length === 0) return;
 
   try {
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const analyticsUrl = Deno.env.get("ANALYTICS_PROXY_URL");
     if (!analyticsUrl) {
       console.warn(
@@ -100,7 +100,7 @@ export async function logEventBatch(
       return;
     }
 
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const apiKey = Deno.env.get("CONFIG_BYPASS_KEY");
 
     console.log("Analytics: shipping event batch", {

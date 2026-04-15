@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
@@ -82,7 +82,7 @@ serve(async (req: Request) => {
     }
 
     // Forward to secondary project's analytics endpoint
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const proxyUrl = Deno.env.get("ANALYTICS_PROXY_URL");
     if (!proxyUrl) {
       console.error("analytics: ANALYTICS_PROXY_URL is not configured");

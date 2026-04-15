@@ -10,7 +10,7 @@ import {
 } from "../_shared/dao/conversationDao.ts";
 import { verifyVisitorToken } from "../_shared/visitorAuth.ts";
 
-// @ts-ignore
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });

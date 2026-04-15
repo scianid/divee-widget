@@ -6,7 +6,7 @@ const EMBEDDING_URL = "https://api.openai.com/v1/embeddings";
  * Returns a 1536-dimensional float array.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  // @ts-ignore
+  // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY not set");
 

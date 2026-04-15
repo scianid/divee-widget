@@ -24,7 +24,7 @@ async function withRetry<T>(
   throw lastError;
 }
 
-export async function getProjectById(projectId: string, supabase: any) {
+export function getProjectById(projectId: string, supabase: any) {
   // L-3 fix: select only the columns consumed by edge functions; exclude
   // internal fields (account_id, created_at) that are never read by callers.
   return withRetry(async () => {
@@ -45,7 +45,7 @@ export async function getProjectById(projectId: string, supabase: any) {
   });
 }
 
-export async function getProjectConfigById(projectId: string, supabase: any) {
+export function getProjectConfigById(projectId: string, supabase: any) {
   // L-3 fix: select only the columns returned to the widget (ad_tag_id and
   // ad size overrides); exclude commercial/audit fields (revenue_share_percentage,
   // ad_tag_id_locked, deleted_at, deleted_by, ad_tag_id_updated_by/at).

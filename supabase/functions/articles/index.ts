@@ -19,7 +19,7 @@ const cachedResp = (
 
 const errorResp = (message: string, status = 400) => sharedErrorResp(message, status);
 
-// @ts-ignore
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });

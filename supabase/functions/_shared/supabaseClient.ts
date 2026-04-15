@@ -1,12 +1,11 @@
-// @ts-ignore
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-// @ts-ignore: Deno is available in the runtime environment
-export async function supabaseClient() {
+export function supabaseClient() {
   return createClient(
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     Deno.env.get("SUPABASE_URL") ?? "",
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 }

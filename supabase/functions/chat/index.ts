@@ -4,7 +4,6 @@ import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { logEvent } from "../_shared/analytics.ts";
 import {
   type AiCustomization,
-  estimateCharCount,
   type Message,
   readStreamAndCollectAnswer,
   streamAnswer,
@@ -279,7 +278,7 @@ export async function chatHandler(
       articleUrl: url,
     }, `${questionType}_question_asked`);
 
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const allowFreeForm = Deno.env.get("ALLOW_FREEFORM_ASK") === "true";
 
     // Knowledgebase mode is always freeform — skip suggestion guards
@@ -323,7 +322,7 @@ export async function chatHandler(
       }
     }
 
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const rejectUnrelatedQuestions = Deno.env.get("REJECT_UNRELATED_QUESTIONS") === "true";
 
     const denyUnrelatedQuestionsPrompt = `

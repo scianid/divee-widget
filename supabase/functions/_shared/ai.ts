@@ -90,7 +90,7 @@ function toSuggestionItems(questions: string[]): SuggestionItem[] {
 }
 
 function getProvider(): AiProvider {
-  // @ts-ignore
+  // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
   const provider = Deno.env.get(AI_PROVIDER_ENV)?.toLowerCase();
   if (!provider) return DEFAULT_PROVIDER as AiProvider;
   if (provider in AI_PROVIDERS) return provider as AiProvider;
@@ -102,7 +102,7 @@ function getProvider(): AiProvider {
 function getAiConfig() {
   const provider = getProvider();
   const config = AI_PROVIDERS[provider];
-  // @ts-ignore
+  // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
   const apiKey = Deno.env.get(config.apiKeyEnv);
   if (!apiKey) {
     throw new Error(`${config.apiKeyEnv} key not set`);
@@ -372,7 +372,7 @@ export async function streamAnswer(
   } else {
     // Handle legacy format (title, content, question)
     const content = contentOrCustomization as string | undefined;
-    // @ts-ignore
+    // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
     const rejectUnrelatedQuestions = Deno.env.get("REJECT_UNRELATED_QUESTIONS") === "true";
 
     const denyUnrelatedQuestionsPrompt = `

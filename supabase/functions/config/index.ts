@@ -5,7 +5,7 @@ import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { errorResp, successRespWithCache } from "../_shared/responses.ts";
 import { getProjectById, getProjectConfigById } from "../_shared/dao/projectDao.ts";
 
-// @ts-ignore
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
