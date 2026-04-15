@@ -84,8 +84,11 @@ jobs:
           set -euo pipefail
           # Fail if any function imports from an unpinned/untrusted source.
           # Allowed: jsr:, npm: (pinned), https:// with @<version>, relative paths.
+          # A pinned URL looks like `@1.2.3/path/...` or `@1.2.3"` — the
+          # version must be followed by either a `/` (URL path continues) or
+          # a closing quote (version is the tail of the specifier).
           BAD=$(grep -RhE "from\s+['\"]https?://" --include="*.ts" . \
-            | grep -vE "@[0-9]+\.[0-9]+(\.[0-9]+)?['\"]" \
+            | grep -vE "@[0-9]+\.[0-9]+(\.[0-9]+)?(/|['\"])" \
             || true)
           RAW=$(grep -RhE "raw\.githubusercontent\.com" --include="*.ts" . || true)
           if [ -n "$BAD" ] || [ -n "$RAW" ]; then
