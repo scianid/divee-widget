@@ -3,6 +3,14 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { errorResp as sharedErrorResp, successRespWithCache } from "../_shared/responses.ts";
+import {
+  getArticlesByIds,
+  getArticlesByTag,
+  getArticleTagsByArticleId,
+  getArticleTagsByTagValues,
+  getProjectForArticlesAuth,
+  getSourceArticleTags,
+} from "../_shared/dao/articleDao.ts";
 
 const TAG_WEIGHTS: Record<string, number> = {
   person: 2.0,
@@ -19,8 +27,34 @@ const cachedResp = (
 
 const errorResp = (message: string, status = 400) => sharedErrorResp(message, status);
 
-// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
-Deno.serve(async (req: Request) => {
+// ─── Dependency injection seam ────────────────────────────────────────────
+// `articlesHandler` accepts an `ArticlesDeps` object so unit tests can stub
+// the Supabase DAO calls without touching the network. Production wires the
+// real implementations via `realArticlesDeps`. Same pattern as config/chat.
+export interface ArticlesDeps {
+  supabaseClient: typeof supabaseClient;
+  getProjectForArticlesAuth: typeof getProjectForArticlesAuth;
+  getArticleTagsByArticleId: typeof getArticleTagsByArticleId;
+  getArticlesByTag: typeof getArticlesByTag;
+  getSourceArticleTags: typeof getSourceArticleTags;
+  getArticleTagsByTagValues: typeof getArticleTagsByTagValues;
+  getArticlesByIds: typeof getArticlesByIds;
+}
+
+export const realArticlesDeps: ArticlesDeps = {
+  supabaseClient,
+  getProjectForArticlesAuth,
+  getArticleTagsByArticleId,
+  getArticlesByTag,
+  getSourceArticleTags,
+  getArticleTagsByTagValues,
+  getArticlesByIds,
+};
+
+export async function articlesHandler(
+  req: Request,
+  deps: ArticlesDeps = realArticlesDeps,
+): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -43,16 +77,11 @@ Deno.serve(async (req: Request) => {
       return errorResp("Missing required parameter: projectId");
     }
 
-    const supabase = await supabaseClient();
+    const supabase = await deps.supabaseClient();
 
     // Validate projectId exists and check origin
-    const { data: project, error: projectError } = await supabase
-      .from("project")
-      .select("project_id, allowed_urls")
-      .eq("project_id", projectId)
-      .single();
-
-    if (projectError || !project) {
+    const project = await deps.getProjectForArticlesAuth(projectId, supabase);
+    if (!project) {
       return errorResp("Invalid projectId");
     }
 
@@ -70,11 +99,11 @@ Deno.serve(async (req: Request) => {
 
     switch (route) {
       case "tags":
-        return await handleTags(url, projectId, supabase, surrogateKey);
+        return await handleTags(url, projectId, supabase, surrogateKey, deps);
       case "by-tag":
-        return await handleByTag(url, projectId, supabase, surrogateKey);
+        return await handleByTag(url, projectId, supabase, surrogateKey, deps);
       case "related":
-        return await handleRelated(url, projectId, supabase, surrogateKey);
+        return await handleRelated(url, projectId, supabase, surrogateKey, deps);
       default:
         return errorResp("Unknown route", 404);
     }
@@ -82,7 +111,7 @@ Deno.serve(async (req: Request) => {
     console.error("[Articles] Error:", err);
     return errorResp("Internal server error", 500);
   }
-});
+}
 
 // ─── GET /articles/tags ──────────────────────────────────────────────
 async function handleTags(
@@ -90,34 +119,16 @@ async function handleTags(
   projectId: string,
   supabase: any,
   surrogateKey: string,
+  deps: ArticlesDeps,
 ) {
   const articleId = url.searchParams.get("articleId");
   if (!articleId) {
     return errorResp("Missing required parameter: articleId");
   }
 
-  console.log("[Articles/tags] Query params:", { articleId, projectId });
+  const rows = await deps.getArticleTagsByArticleId(articleId, projectId, supabase);
 
-  const { data, error } = await supabase
-    .from("article_tag")
-    .select("tag, tag_type, confidence")
-    .eq("article_unique_id", articleId)
-    .eq("project_id", projectId)
-    .order("confidence", { ascending: false });
-
-  console.log("[Articles/tags] DB result:", {
-    rows: data?.length,
-    error,
-    articleId,
-    projectId,
-  });
-
-  if (error) {
-    console.error("[Articles/tags] DB error:", error);
-    return errorResp("Internal server error", 500);
-  }
-
-  const tags = (data || []).map((row: any) => ({
+  const tags = rows.map((row: any) => ({
     value: row.tag,
     type: row.tag_type,
     confidence: row.confidence,
@@ -138,6 +149,7 @@ async function handleByTag(
   projectId: string,
   supabase: any,
   surrogateKey: string,
+  deps: ArticlesDeps,
 ) {
   const tag = url.searchParams.get("tag");
   if (!tag) {
@@ -152,38 +164,17 @@ async function handleByTag(
   );
   const offset = parseInt(url.searchParams.get("offset") || "0", 10) || 0;
 
-  // Build query: join article_tag → article
-  let query = supabase
-    .from("article_tag")
-    .select(`
-      confidence,
-      article:article_unique_id (
-        unique_id,
-        title,
-        url,
-        image_url,
-        created_at
-      )
-    `)
-    .eq("project_id", projectId)
-    .eq("tag", tag);
+  const rows = await deps.getArticlesByTag(
+    projectId,
+    tag,
+    tagType,
+    excludeId,
+    limit,
+    offset,
+    supabase,
+  );
 
-  if (tagType) {
-    query = query.eq("tag_type", tagType);
-  }
-
-  if (excludeId) {
-    query = query.neq("article_unique_id", excludeId);
-  }
-
-  const { data, error } = await query.range(offset, offset + limit - 1);
-
-  if (error) {
-    console.error("[Articles/by-tag] DB error:", error);
-    return errorResp("Internal server error", 500);
-  }
-
-  const articles = (data || [])
+  const articles = rows
     .filter((row: any) => row.article) // filter out any orphaned tags
     .map((row: any) => ({
       unique_id: row.article.unique_id,
@@ -208,6 +199,7 @@ async function handleRelated(
   projectId: string,
   supabase: any,
   surrogateKey: string,
+  deps: ArticlesDeps,
 ) {
   const articleId = url.searchParams.get("articleId");
   if (!articleId) {
@@ -220,16 +212,7 @@ async function handleRelated(
   );
 
   // Step 1: Get the source article's tags
-  const { data: sourceTags, error: sourceError } = await supabase
-    .from("article_tag")
-    .select("tag, tag_type")
-    .eq("article_unique_id", articleId)
-    .eq("project_id", projectId);
-
-  if (sourceError) {
-    console.error("[Articles/related] Source tags DB error:", sourceError);
-    return errorResp("Internal server error", 500);
-  }
+  const sourceTags = await deps.getSourceArticleTags(articleId, projectId, supabase);
 
   if (!sourceTags || sourceTags.length === 0) {
     return sharedErrorResp("Article not indexed", 404);
@@ -238,17 +221,12 @@ async function handleRelated(
   const tagValues = sourceTags.map((t: any) => t.tag);
 
   // Step 2: Find all article_tag rows matching those tag values in same project, exclude source
-  const { data: matchingTags, error: matchError } = await supabase
-    .from("article_tag")
-    .select("article_unique_id, tag, tag_type, confidence")
-    .eq("project_id", projectId)
-    .neq("article_unique_id", articleId)
-    .in("tag", tagValues);
-
-  if (matchError) {
-    console.error("[Articles/related] Matching tags DB error:", matchError);
-    return errorResp("Internal server error", 500);
-  }
+  const matchingTags = await deps.getArticleTagsByTagValues(
+    projectId,
+    articleId,
+    tagValues,
+    supabase,
+  );
 
   if (!matchingTags || matchingTags.length === 0) {
     return cachedResp({ articles: [] }, 300, 300, surrogateKey);
@@ -259,7 +237,7 @@ async function handleRelated(
 
   for (const row of matchingTags) {
     const weight = TAG_WEIGHTS[row.tag_type] || 1.0;
-    const confidence = parseFloat(row.confidence) || 1.0;
+    const confidence = parseFloat(String(row.confidence)) || 1.0;
     const entry = scoreMap.get(row.article_unique_id) ||
       { tagCount: 0, score: 0 };
     entry.tagCount += 1;
@@ -278,19 +256,11 @@ async function handleRelated(
 
   // Step 5: Fetch article details for top results
   const topIds = ranked.map(([id]) => id);
-  const { data: articleDetails, error: detailsError } = await supabase
-    .from("article")
-    .select("unique_id, title, url, image_url, created_at")
-    .in("unique_id", topIds);
-
-  if (detailsError) {
-    console.error("[Articles/related] Article details DB error:", detailsError);
-    return errorResp("Internal server error", 500);
-  }
+  const articleDetails = await deps.getArticlesByIds(topIds, supabase);
 
   // Build lookup map
   const detailsMap = new Map<string, any>();
-  for (const a of (articleDetails || [])) {
+  for (const a of articleDetails) {
     detailsMap.set(a.unique_id, a);
   }
 
@@ -313,3 +283,6 @@ async function handleRelated(
   // Cache 5 minutes
   return cachedResp({ articles }, 300, 300, surrogateKey);
 }
+
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
+Deno.serve((req: Request) => articlesHandler(req));

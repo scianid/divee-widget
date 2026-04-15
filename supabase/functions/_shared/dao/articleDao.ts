@@ -1,5 +1,109 @@
 import { SuggestionItem } from "../ai.ts";
 
+export async function getProjectForArticlesAuth(
+  projectId: string,
+  supabase: any,
+): Promise<{ project_id: string; allowed_urls: string[] } | null> {
+  const { data, error } = await supabase
+    .from("project")
+    .select("project_id, allowed_urls")
+    .eq("project_id", projectId)
+    .single();
+  if (error || !data) return null;
+  return data;
+}
+
+export async function getArticleTagsByArticleId(
+  articleId: string,
+  projectId: string,
+  supabase: any,
+): Promise<Array<{ tag: string; tag_type: string; confidence: number }>> {
+  const { data, error } = await supabase
+    .from("article_tag")
+    .select("tag, tag_type, confidence")
+    .eq("article_unique_id", articleId)
+    .eq("project_id", projectId)
+    .order("confidence", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getArticlesByTag(
+  projectId: string,
+  tag: string,
+  tagType: string | null,
+  excludeId: string | null,
+  limit: number,
+  offset: number,
+  supabase: any,
+): Promise<any[]> {
+  let query = supabase
+    .from("article_tag")
+    .select(`
+      confidence,
+      article:article_unique_id (
+        unique_id,
+        title,
+        url,
+        image_url,
+        created_at
+      )
+    `)
+    .eq("project_id", projectId)
+    .eq("tag", tag);
+
+  if (tagType) query = query.eq("tag_type", tagType);
+  if (excludeId) query = query.neq("article_unique_id", excludeId);
+
+  const { data, error } = await query.range(offset, offset + limit - 1);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getSourceArticleTags(
+  articleId: string,
+  projectId: string,
+  supabase: any,
+): Promise<Array<{ tag: string; tag_type: string }>> {
+  const { data, error } = await supabase
+    .from("article_tag")
+    .select("tag, tag_type")
+    .eq("article_unique_id", articleId)
+    .eq("project_id", projectId);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getArticleTagsByTagValues(
+  projectId: string,
+  articleId: string,
+  tagValues: string[],
+  supabase: any,
+): Promise<
+  Array<{ article_unique_id: string; tag: string; tag_type: string; confidence: number }>
+> {
+  const { data, error } = await supabase
+    .from("article_tag")
+    .select("article_unique_id, tag, tag_type, confidence")
+    .eq("project_id", projectId)
+    .neq("article_unique_id", articleId)
+    .in("tag", tagValues);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getArticlesByIds(
+  ids: string[],
+  supabase: any,
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from("article")
+    .select("unique_id, title, url, image_url, created_at")
+    .in("unique_id", ids);
+  if (error) throw error;
+  return data || [];
+}
+
 export async function getArticleById(
   url: string,
   projectId: string,
