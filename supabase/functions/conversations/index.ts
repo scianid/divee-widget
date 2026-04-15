@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { errorResp, successResp } from "../_shared/responses.ts";

@@ -1,0 +1,21 @@
+{
+  "lock": false,
+  "lint": {
+    "include": ["./"],
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["no-explicit-any"]
+    }
+  },
+  "fmt": {
+    "include": ["./"],
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false
+  },
+  "tasks": {
+    "check": "deno check $(find . -name index.ts)",
+    "guard:auth": "deno run --allow-read=. --allow-env ../../../scripts/check-edge-auth.ts --project=widget"
+  }
+}
