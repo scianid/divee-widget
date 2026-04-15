@@ -140,7 +140,7 @@ jobs:
           # per-function diff would otherwise silently skip the redeploy
           # (this is the origin.ts bug we hit).
           GLOBAL=0
-          if echo "$DIFF" | grep -qE '^supabase/functions/_(shared|tests)/'; then GLOBAL=1; fi
+          if echo "$DIFF" | grep -qE '^supabase/functions/_shared/'; then GLOBAL=1; fi
           if echo "$DIFF" | grep -qE '^supabase/config\.toml$'; then GLOBAL=1; fi
           if echo "$DIFF" | grep -qE '^supabase/functions/deno\.json$'; then GLOBAL=1; fi
 
