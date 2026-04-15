@@ -207,8 +207,7 @@ Deno.test("config: happy path returns 200 with public CDN cache headers", async 
 
 Deno.test("config: display_position falls back to 'bottom-right' for unknown values", async () => {
   const deps = makeDeps({
-    getProjectById: () =>
-      Promise.resolve(fakeProject({ display_position: "somewhere-random" })),
+    getProjectById: () => Promise.resolve(fakeProject({ display_position: "somewhere-random" })),
   });
   const res = await configHandler(req({ projectId: PROJECT_ID }), deps);
   assertEquals(res.status, 200);
