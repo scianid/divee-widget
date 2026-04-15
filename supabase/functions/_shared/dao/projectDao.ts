@@ -18,9 +18,7 @@ async function withRetry<T>(
     } catch (err: any) {
       lastError = err;
       if (!isTransientError(err) || attempt === retries - 1) throw err;
-      await new Promise((resolve) =>
-        setTimeout(resolve, delayMs * Math.pow(2, attempt))
-      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs * Math.pow(2, attempt)));
     }
   }
   throw lastError;

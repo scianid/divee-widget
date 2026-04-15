@@ -245,9 +245,7 @@ function applyCustomization(
     let addendum = "";
     if (tone) addendum += `\nRespond in a ${tone} tone.`;
     if (guardrails && guardrails.length > 0) {
-      addendum += `\nGuidelines you must follow:\n${
-        guardrails.map((g) => `- ${g}`).join("\n")
-      }`;
+      addendum += `\nGuidelines you must follow:\n${guardrails.map((g) => `- ${g}`).join("\n")}`;
     }
     if (custom_instructions) addendum += `\n${custom_instructions}`;
 
@@ -366,16 +364,16 @@ export async function streamAnswer(
 
   // Handle message array (new conversation format)
   if (Array.isArray(titleOrMessages)) {
-    const customization = (typeof contentOrCustomization === "object"
-      ? contentOrCustomization
-      : undefined) as AiCustomization | undefined;
+    const customization =
+      (typeof contentOrCustomization === "object" ? contentOrCustomization : undefined) as
+        | AiCustomization
+        | undefined;
     messages = applyCustomization(titleOrMessages, customization);
   } else {
     // Handle legacy format (title, content, question)
     const content = contentOrCustomization as string | undefined;
     // @ts-ignore
-    const rejectUnrelatedQuestions =
-      Deno.env.get("REJECT_UNRELATED_QUESTIONS") === "true";
+    const rejectUnrelatedQuestions = Deno.env.get("REJECT_UNRELATED_QUESTIONS") === "true";
 
     const denyUnrelatedQuestionsPrompt = `
       Do not answer questions unrelated to the article.

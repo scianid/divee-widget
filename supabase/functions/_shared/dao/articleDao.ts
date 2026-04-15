@@ -120,9 +120,7 @@ export async function updateCacheAnswer(
     suggestions?: SuggestionItem[];
   };
 
-  const suggestions = Array.isArray(cache.suggestions)
-    ? cache.suggestions.slice()
-    : [];
+  const suggestions = Array.isArray(cache.suggestions) ? cache.suggestions.slice() : [];
   const idx = suggestions.findIndex((s) => s.id === questionId);
 
   if (idx >= 0) {

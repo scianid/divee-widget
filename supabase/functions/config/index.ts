@@ -3,10 +3,7 @@ import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { errorResp, successRespWithCache } from "../_shared/responses.ts";
-import {
-  getProjectById,
-  getProjectConfigById,
-} from "../_shared/dao/projectDao.ts";
+import { getProjectById, getProjectConfigById } from "../_shared/dao/projectDao.ts";
 
 // @ts-ignore
 Deno.serve(async (req: Request) => {
@@ -70,17 +67,15 @@ Deno.serve(async (req: Request) => {
         "Ask anything about this article...",
       ],
       display_mode: project.display_mode || "anchored",
-      display_position:
-        ["bottom-left", "bottom-right"].includes(project.display_position)
-          ? project.display_position
-          : "bottom-right",
+      display_position: ["bottom-left", "bottom-right"].includes(project.display_position)
+        ? project.display_position
+        : "bottom-right",
       anchored_position: ["top", "bottom"].includes(project.display_position)
         ? project.display_position
         : "bottom",
       article_class: project.article_class || null,
       widget_container_class: project.widget_container_class || null,
-      override_mobile_container_selector:
-        project.override_mobile_container_selector || null,
+      override_mobile_container_selector: project.override_mobile_container_selector || null,
       disclaimer_text: project.disclaimer_text || null,
       widget_mode: project.widget_mode || "article",
       ask_concent: project.ask_concent === true,

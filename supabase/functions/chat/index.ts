@@ -19,15 +19,8 @@ import {
   updateArticleImage,
   updateCacheAnswer,
 } from "../_shared/dao/articleDao.ts";
-import {
-  insertFreeformQuestion,
-  updateFreeformAnswer,
-} from "../_shared/dao/freeformQaDao.ts";
-import {
-  MAX_CONTENT_LENGTH,
-  MAX_TITLE_LENGTH,
-  sanitizeContent,
-} from "../_shared/constants.ts";
+import { insertFreeformQuestion, updateFreeformAnswer } from "../_shared/dao/freeformQaDao.ts";
+import { MAX_CONTENT_LENGTH, MAX_TITLE_LENGTH, sanitizeContent } from "../_shared/constants.ts";
 import {
   appendMessagesToConversation,
   type ConversationMessage,
@@ -270,19 +263,13 @@ export async function chatHandler(
         sessionId: session_id,
         articleUrl: url,
       },
-      conversation.message_count === 0
-        ? "conversation_started"
-        : "conversation_continued",
+      conversation.message_count === 0 ? "conversation_started" : "conversation_continued",
       undefined,
     );
 
-    const cacheSuggestions = isKnowledgebase
-      ? null
-      : extractCachedSuggestions(article);
+    const cacheSuggestions = isKnowledgebase ? null : extractCachedSuggestions(article);
     const cachedItem = cacheSuggestions?.find((s) => s.id === questionId);
-    const questionType: "suggestion" | "custom" = cachedItem
-      ? "suggestion"
-      : "custom";
+    const questionType: "suggestion" | "custom" = cachedItem ? "suggestion" : "custom";
 
     // Track question_asked event
     deps.logEvent({
@@ -337,8 +324,7 @@ export async function chatHandler(
     }
 
     // @ts-ignore
-    const rejectUnrelatedQuestions =
-      Deno.env.get("REJECT_UNRELATED_QUESTIONS") === "true";
+    const rejectUnrelatedQuestions = Deno.env.get("REJECT_UNRELATED_QUESTIONS") === "true";
 
     const denyUnrelatedQuestionsPrompt = `
       Do not answer questions unrelated to the article.

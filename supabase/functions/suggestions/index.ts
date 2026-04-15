@@ -12,11 +12,7 @@ import {
   updateArticleCache,
 } from "../_shared/dao/articleDao.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
-import {
-  MAX_CONTENT_LENGTH,
-  MAX_TITLE_LENGTH,
-  sanitizeContent,
-} from "../_shared/constants.ts";
+import { MAX_CONTENT_LENGTH, MAX_TITLE_LENGTH, sanitizeContent } from "../_shared/constants.ts";
 import { insertTokenUsage } from "../_shared/dao/tokenUsageDao.ts";
 import { checkRateLimit } from "../_shared/rateLimit.ts";
 import { generateEmbedding } from "../_shared/embeddingService.ts";
@@ -30,8 +26,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    let { projectId, title, content, url, visitor_id, session_id, metadata } =
-      await req.json();
+    let { projectId, title, content, url, visitor_id, session_id, metadata } = await req.json();
 
     // Truncate then sanitize inputs - mitigates stored prompt injection (C-1)
     if (title) title = sanitizeContent(title.substring(0, MAX_TITLE_LENGTH));
@@ -152,9 +147,7 @@ Deno.serve(async (req: Request) => {
           model,
           endpoint: "suggestions",
           metadata: { article_url: url, language: project?.language || "en" },
-        }).catch((err) =>
-          console.error("suggestions: failed to track tokens", err)
-        );
+        }).catch((err) => console.error("suggestions: failed to track tokens", err));
       }
 
       return successResp({ suggestions });
@@ -233,9 +226,7 @@ Deno.serve(async (req: Request) => {
           article_id: article?.unique_id || null,
           language: project?.language || "en",
         },
-      }).then(() =>
-        console.log("suggestions: token usage tracked successfully")
-      ).catch((err) =>
+      }).then(() => console.log("suggestions: token usage tracked successfully")).catch((err) =>
         console.error("suggestions: failed to track tokens", err)
       );
     } else {

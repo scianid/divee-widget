@@ -2,10 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
-import {
-  errorResp as sharedErrorResp,
-  successRespWithCache,
-} from "../_shared/responses.ts";
+import { errorResp as sharedErrorResp, successRespWithCache } from "../_shared/responses.ts";
 
 const TAG_WEIGHTS: Record<string, number> = {
   person: 2.0,
@@ -20,8 +17,7 @@ const cachedResp = (
   surrogateKey: string,
 ) => successRespWithCache(body, maxAge, sMaxAge, surrogateKey);
 
-const errorResp = (message: string, status = 400) =>
-  sharedErrorResp(message, status);
+const errorResp = (message: string, status = 400) => sharedErrorResp(message, status);
 
 // @ts-ignore
 Deno.serve(async (req: Request) => {

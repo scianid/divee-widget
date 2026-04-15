@@ -195,8 +195,7 @@ Deno.test("chat: rate-limited caller receives 429 with Retry-After header", asyn
 
 Deno.test("chat: conversation at 200-message limit returns 429", async () => {
   const deps = makeDeps({
-    getOrCreateConversation: () =>
-      Promise.resolve(fakeConversation({ message_count: 200 })),
+    getOrCreateConversation: () => Promise.resolve(fakeConversation({ message_count: 200 })),
   });
   const res = await chatHandler(req(validBody()), deps);
   assertEquals(res.status, 429);
