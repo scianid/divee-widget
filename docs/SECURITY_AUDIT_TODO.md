@@ -158,7 +158,46 @@ worth re-reading after the audit:
 - **SOC2**: CC6.7
 - **Effort**: ~1 hour.
 
-### [ ] 7. Rotate or replace `CONFIG_BYPASS_KEY`
+### [x] 7. Rotate or replace `CONFIG_BYPASS_KEY`
+
+**Implementation notes (done):**
+
+Chose option (2) — replaced the static key with an HMAC-signed
+short-lived token. The static-key path is gone.
+
+- New module [_shared/configBypassToken.ts](../supabase/functions/_shared/configBypassToken.ts)
+  mirroring the visitorAuth HMAC pattern. Token format
+  `v1|operator|expiresMs|hex-hmac`, signed over `v1|operator|expiresMs`
+  with a new env var `CONFIG_BYPASS_SECRET`.
+- Hard TTL ceiling of 1 hour (`MAX_BYPASS_TOKEN_TTL_MS`). Trying to
+  mint a longer-lived token throws — the point is that anyone needing
+  durable access should not be using the bypass.
+- Operator field is an allowlisted `[a-zA-Z0-9-]{1,32}` identifier
+  passed at mint time. Attribution is now mandatory.
+- config/index.ts accepts the token from either `?bypass_token=...`
+  or the `x-config-bypass-token` header. Successful bypasses log
+  `config: bypass token accepted` with the operator identifier; the
+  raw token is never logged (tests assert this).
+- `CONFIG_BYPASS_KEY` was being DOUBLY USED — also as the `x-api-key`
+  header for outbound calls from `_shared/analytics.ts` to the
+  secondary analytics proxy. Decoupled: analytics.ts now reads
+  `ANALYTICS_PROXY_API_KEY` with a temporary fallback to the old
+  var. Remove the fallback once the new secret is deployed everywhere.
+
+**Env var migration checklist (for deploy):**
+
+- [ ] Set `CONFIG_BYPASS_SECRET` via `supabase secrets set` — any
+      random 32+ byte string. Different from any other secret.
+- [ ] Set `ANALYTICS_PROXY_API_KEY` with the same value `CONFIG_BYPASS_KEY`
+      currently holds, OR rotate it on the secondary project at the
+      same time.
+- [ ] Once verified in prod, unset `CONFIG_BYPASS_KEY` and remove the
+      fallback in `_shared/analytics.ts`.
+- [ ] Update internal tooling / runbooks that used the old
+      `?bypass_key=...` query param. Minting a token is a one-liner
+      with `issueConfigBypassToken("operator", ttlMs)` — add a CLI
+      helper at `scripts/mint-config-bypass-token.ts` if callers need
+      something repeatable.
 
 - **What**: `config/index.ts` accepts a static `?bypass_key=...` that
   bypasses origin validation. Shared secret, env-configured, no TTL,

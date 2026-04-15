@@ -33,8 +33,18 @@ export async function logEvent(
       return;
     }
 
+    // SECURITY_AUDIT_TODO item 7: analytics used to piggyback on
+    // CONFIG_BYPASS_KEY here, which coupled two unrelated credentials
+    // and made rotation impossible. Primary env var is now
+    // ANALYTICS_PROXY_API_KEY. Fall back to CONFIG_BYPASS_KEY only as a
+    // migration aid so rolling out the new secret doesn't require a
+    // lock-step deploy of both this code and the secondary project's
+    // verifier. Remove the fallback once ANALYTICS_PROXY_API_KEY is
+    // deployed everywhere.
     // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
-    const apiKey = Deno.env.get("CONFIG_BYPASS_KEY");
+    const apiKey = Deno.env.get("ANALYTICS_PROXY_API_KEY") ??
+      // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
+      Deno.env.get("CONFIG_BYPASS_KEY");
 
     console.log("Analytics: shipping event", {
       eventType,
@@ -100,8 +110,18 @@ export async function logEventBatch(
       return;
     }
 
+    // SECURITY_AUDIT_TODO item 7: analytics used to piggyback on
+    // CONFIG_BYPASS_KEY here, which coupled two unrelated credentials
+    // and made rotation impossible. Primary env var is now
+    // ANALYTICS_PROXY_API_KEY. Fall back to CONFIG_BYPASS_KEY only as a
+    // migration aid so rolling out the new secret doesn't require a
+    // lock-step deploy of both this code and the secondary project's
+    // verifier. Remove the fallback once ANALYTICS_PROXY_API_KEY is
+    // deployed everywhere.
     // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
-    const apiKey = Deno.env.get("CONFIG_BYPASS_KEY");
+    const apiKey = Deno.env.get("ANALYTICS_PROXY_API_KEY") ??
+      // @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
+      Deno.env.get("CONFIG_BYPASS_KEY");
 
     console.log("Analytics: shipping event batch", {
       count: rows.length,

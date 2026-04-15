@@ -7,9 +7,10 @@
  *   - 400 on missing projectId
  *   - `client_id` query param is an accepted alias for `projectId`
  *   - 403 when origin is not in project.allowed_urls
- *   - Bypass via `?bypass_key=...` when CONFIG_BYPASS_KEY env is set
- *   - Bypass is rejected when env var is unset (fail-closed)
- *   - Bypass is rejected when the provided key doesn't match
+ *   - Bypass via HMAC token (`?bypass_token=...` or `x-config-bypass-token`
+ *     header) — SECURITY_AUDIT_TODO item 7. The old `?bypass_key=...`
+ *     flow with a static shared secret has been removed; these tests
+ *     pin the replacement and its rejection cases.
  *   - Happy-path response: status 200, widget config body, and — the reason
  *     this file exists at all — the public CDN cache headers so the config
  *     response can be served from Fastly to anonymous visitors safely.
@@ -21,7 +22,10 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { setEnv } from "./helpers.ts";
 
 // ── One-time env setup (before importing the handler module) ──────────────
-const restoreEnv = setEnv({ CONFIG_BYPASS_KEY: "super-secret-bypass" });
+// CONFIG_BYPASS_SECRET is used by the configBypassToken.ts HMAC module
+// (SECURITY_AUDIT_TODO item 7). The old CONFIG_BYPASS_KEY env var is
+// gone — no test references it.
+const restoreEnv = setEnv({ CONFIG_BYPASS_SECRET: "test-hmac-secret-for-config-bypass" });
 
 // Neutralize the module-level `Deno.serve(...)` so the dynamic import below
 // doesn't try to bind a port. We test `configHandler` directly.
@@ -78,22 +82,30 @@ function fakeProjectConfig(overrides: Record<string, unknown> = {}) {
 
 /** Build a GET request hitting /config?projectId=… with an Origin header. */
 function req(
-  opts: { projectId?: string; clientId?: string; bypassKey?: string; origin?: string } = {},
+  opts: {
+    projectId?: string;
+    clientId?: string;
+    bypassToken?: string;
+    bypassHeader?: string;
+    origin?: string;
+  } = {},
 ): Request {
   const u = new URL("https://widget.divee.ai/functions/v1/config");
   if (opts.projectId !== undefined) u.searchParams.set("projectId", opts.projectId);
   if (opts.clientId !== undefined) u.searchParams.set("client_id", opts.clientId);
-  if (opts.bypassKey !== undefined) u.searchParams.set("bypass_key", opts.bypassKey);
-  return new Request(u.toString(), {
-    method: "GET",
-    headers: { "origin": opts.origin ?? ALLOWED_ORIGIN },
-  });
+  if (opts.bypassToken !== undefined) u.searchParams.set("bypass_token", opts.bypassToken);
+  const headers: Record<string, string> = { "origin": opts.origin ?? ALLOWED_ORIGIN };
+  if (opts.bypassHeader !== undefined) headers["x-config-bypass-token"] = opts.bypassHeader;
+  return new Request(u.toString(), { method: "GET", headers });
 }
 
 /**
- * Build a ConfigDeps stub. Any field not overridden returns the default fake
- * (project row + config row). Pass an override returning null for the missing-
- * config-row scenario, etc.
+ * Build a ConfigDeps stub. The default `verifyConfigBypassToken` stub
+ * treats any non-empty token as valid so individual tests can assert
+ * bypass behavior without wrestling the real HMAC module. Tests that
+ * care about rejection paths override it to return null. Tests that
+ * care about the REAL token format go through the end-to-end test
+ * below that mints a real token.
  */
 // deno-lint-ignore no-explicit-any
 function makeDeps(overrides: Record<string, unknown> = {}): any {
@@ -102,6 +114,8 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
     getProjectById: () => Promise.resolve(fakeProject()),
     getProjectConfigById: () => Promise.resolve(fakeProjectConfig()),
     checkRateLimit: () => Promise.resolve({ limited: false }),
+    verifyConfigBypassToken: (token: string | null | undefined) =>
+      Promise.resolve(token ? { operator: "test-operator", expiresMs: Date.now() + 60_000 } : null),
     ...overrides,
   };
 }
@@ -135,46 +149,76 @@ Deno.test("config: origin not in allowed_urls returns 403", async () => {
   assertEquals(res.status, 403);
 });
 
-Deno.test("config: valid bypass_key skips the origin check", async () => {
+// ── HMAC bypass token (SECURITY_AUDIT_TODO item 7) ──────────────────────
+
+Deno.test("config: valid bypass_token (query param) skips the origin check", async () => {
   const deps = makeDeps({
     // project.allowed_urls does NOT include the caller's origin, so without
     // the bypass this would be a 403.
     getProjectById: () => Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
   });
   const res = await configHandler(
-    req({ projectId: PROJECT_ID, bypassKey: "super-secret-bypass" }),
+    req({ projectId: PROJECT_ID, bypassToken: "opaque-valid-token" }),
     deps,
   );
   assertEquals(res.status, 200);
 });
 
-Deno.test("config: bypass_key rejected when CONFIG_BYPASS_KEY env is unset", async () => {
-  const prev = Deno.env.get("CONFIG_BYPASS_KEY");
-  Deno.env.delete("CONFIG_BYPASS_KEY");
-  try {
-    const deps = makeDeps({
-      getProjectById: () => Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
-    });
-    const res = await configHandler(
-      req({ projectId: PROJECT_ID, bypassKey: "super-secret-bypass" }),
-      deps,
-    );
-    // Env var missing → bypass impossible → origin check runs → 403.
-    assertEquals(res.status, 403);
-  } finally {
-    if (prev !== undefined) Deno.env.set("CONFIG_BYPASS_KEY", prev);
-  }
-});
-
-Deno.test("config: wrong bypass_key is rejected", async () => {
+Deno.test("config: valid bypass token accepted from x-config-bypass-token header", async () => {
+  // The header alternative exists for tooling that prefers headers over
+  // query strings (the token doesn't end up in URL logs that way).
   const deps = makeDeps({
     getProjectById: () => Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
   });
   const res = await configHandler(
-    req({ projectId: PROJECT_ID, bypassKey: "wrong-key" }),
+    req({ projectId: PROJECT_ID, bypassHeader: "opaque-valid-token" }),
+    deps,
+  );
+  assertEquals(res.status, 200);
+});
+
+Deno.test("config: invalid bypass token is rejected and origin check runs", async () => {
+  const deps = makeDeps({
+    getProjectById: () => Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
+    // Verifier stub returns null → handler falls through to origin check.
+    verifyConfigBypassToken: () => Promise.resolve(null),
+  });
+  const res = await configHandler(
+    req({ projectId: PROJECT_ID, bypassToken: "forged-token" }),
     deps,
   );
   assertEquals(res.status, 403);
+});
+
+Deno.test("config: successful bypass logs the operator (attribution)", async () => {
+  // SOC2 CC7.3: every use of a privileged override must leave a trail
+  // identifying the actor. This test captures the warn log and asserts
+  // the operator identifier shows up. The raw token never does.
+  const captured: string[] = [];
+  const origWarn = console.warn;
+  // deno-lint-ignore no-explicit-any
+  console.warn = (...args: any[]) => {
+    captured.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+  };
+  try {
+    const deps = makeDeps({
+      getProjectById: () => Promise.resolve(fakeProject({ allowed_urls: ["other.example.com"] })),
+      verifyConfigBypassToken: () =>
+        Promise.resolve({ operator: "oncall-alice", expiresMs: Date.now() + 60_000 }),
+    });
+    const res = await configHandler(
+      req({ projectId: PROJECT_ID, bypassToken: "opaque-valid-token" }),
+      deps,
+    );
+    assertEquals(res.status, 200);
+  } finally {
+    console.warn = origWarn;
+  }
+  const joined = captured.join("\n");
+  assertEquals(joined.includes("config: bypass token accepted"), true);
+  assertEquals(joined.includes("oncall-alice"), true);
+  // Raw token must NOT appear in the log.
+  assertEquals(joined.includes("opaque-valid-token"), false);
 });
 
 Deno.test("config: happy path returns 200 with public CDN cache headers", async () => {

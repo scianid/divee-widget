@@ -121,8 +121,11 @@ Deno.test("sanitizeContent: NFKC collapses ligatures (ﬀ → ff)", () => {
 // ── Control / format character stripping (NEW — item 6) ─────────────────
 
 Deno.test("sanitizeContent: zero-width space (U+200B) is stripped", () => {
-  // An attacker can hide instructions with ZWSP: visually "hello" but
-  // semantically "h​ello" — two different strings to a text matcher.
+  // An attacker can hide instructions with a ZWSP (U+200B) inside a word:
+  // visually "hello" but semantically "h<ZWSP>ello" — two different
+  // strings to a text matcher. The literal U+200B would trip deno-lint's
+  // no-irregular-whitespace rule if written into this comment, so the
+  // character only appears in the string literal below.
   assertEquals(sanitizeContent("h\u200Bello"), "hello");
 });
 
