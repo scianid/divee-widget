@@ -147,7 +147,12 @@ jobs:
           # `|| true` on every pipeline so an empty match doesn't trip pipefail.
           if [ "$GLOBAL" = "1" ]; then
             echo "Global change detected → deploying ALL functions"
-            CHANGED=$({ ls supabase/functions 2>/dev/null || true; } \
+            # List only directories under supabase/functions (skip files like
+            # deno.json), and drop private ones prefixed with `_` (_shared,
+            # _tests). `ls` alone would return deno.json as a deployable
+            # "function" and fail at the supabase CLI step.
+            CHANGED=$({ find supabase/functions -mindepth 1 -maxdepth 1 -type d 2>/dev/null || true; } \
+              | sed 's|.*/||' \
               | { grep -vE '^_' || true; } \
               | sort -u | paste -sd, -)
           else
@@ -166,6 +171,10 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          # Probe: verify the secret actually reached the shell. Prints only
+          # length, never the value. If this prints 0, the env/repo secret
+          # scoping is wrong — check Settings → Environments → production-edge-functions.
+          echo "SUPABASE_ACCESS_TOKEN length: ${#SUPABASE_ACCESS_TOKEN}"
           IFS=',' read -ra FNS <<< "${{ steps.changed.outputs.fns }}"
           for fn in "${FNS[@]}"; do
             echo "::group::Deploying $fn"
