@@ -216,7 +216,40 @@ short-lived token. The static-key path is gone.
 - **SOC2**: CC6.1, CC7.3
 - **Effort**: ~2 hours for (1), ~4 hours for (2).
 
-### [x] 8. Add an `audit_log` table for destructive actions
+### [-] 8. Add an `audit_log` table for destructive actions
+
+**Won't fix (for now).** The `public.audit_log` table already exists in
+the parent divee.ai repo
+([supabase/migrations/20260408000004_audit_log.sql](https://github.com/scianid/divee.ai/blob/main/supabase/migrations/20260408000004_audit_log.sql))
+and is used for back-office admin actions via the parent repo's
+`_shared/audit.ts` helper. It carries `actor_id uuid NOT NULL`, which
+fits admin identities but not anonymous widget visitors.
+
+We considered widening the table and writing visitor-initiated
+conversation resets/deletes into the same log. Decided against:
+
+- Audit today is scoped to back-office operations where a human with a
+  Supabase auth identity is accountable. Widget DELETE/reset calls are
+  self-service over a cookie id — the audit value is much lower
+  (visitor is the same person as owner), and the row volume would be
+  dominated by visitor events, diluting the back-office signal.
+- Cross-repo schema ownership: widening `public.audit_log` from the
+  widget repo would mean the widget migrations start owning a table
+  the parent repo also writes to. That's a coordination hazard we
+  don't need.
+
+**Revisit when** the widget grows an admin surface (publisher dashboard
+that can delete conversations on behalf of a user), or when SOC2
+specifically asks for visitor-event attribution. At that point:
+
+- Option A: add a separate `widget_audit_log` table owned by the
+  widget repo, keeping the back-office one untouched.
+- Option B: coordinate with the parent repo to widen the shared table
+  (add nullable `visitor_id`, `project_id` columns + a check
+  constraint).
+
+The analysis above is preserved so the next person doesn't rediscover
+the same tradeoffs.
 
 - **What**: `DELETE /conversations/:id` and `POST /conversations/reset`
   have no durable record of who did what. Chat token usage is tracked
