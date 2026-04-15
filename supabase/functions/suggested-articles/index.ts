@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { errorResp, successResp } from "../_shared/responses.ts";
+import { enforceContentLength, errorResp, successResp } from "../_shared/responses.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import {
@@ -40,6 +40,12 @@ export async function suggestedArticlesHandler(
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  // SECURITY_AUDIT_TODO item 3: cap body size BEFORE parsing. The request
+  // body is three short fields (projectId, currentUrl, conversationId) —
+  // 4KB is generous. Anything bigger is abuse.
+  const oversize = enforceContentLength(req, 4096);
+  if (oversize) return oversize;
 
   try {
     const { projectId, currentUrl, conversationId } = await req.json();

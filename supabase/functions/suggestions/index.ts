@@ -3,7 +3,7 @@ import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { generateSuggestions } from "../_shared/ai.ts";
 import { logEvent } from "../_shared/analytics.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { errorResp, successResp } from "../_shared/responses.ts";
+import { enforceContentLength, errorResp, successResp } from "../_shared/responses.ts";
 import { getProjectById } from "../_shared/dao/projectDao.ts";
 import {
   extractCachedSuggestions,
@@ -61,6 +61,12 @@ export async function suggestionsHandler(
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  // SECURITY_AUDIT_TODO item 3: cap body size BEFORE parsing. Same 64KB
+  // budget as /chat — same MAX_CONTENT_LENGTH + MAX_TITLE_LENGTH sanitizer
+  // caps apply here.
+  const oversize = enforceContentLength(req, 65536);
+  if (oversize) return oversize;
 
   try {
     let { projectId, title, content, url, visitor_id, session_id, metadata } = await req.json();

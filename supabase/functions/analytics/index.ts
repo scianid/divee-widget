@@ -4,7 +4,7 @@ import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { getProjectById } from "../_shared/dao/projectDao.ts";
 import { checkRateLimit } from "../_shared/rateLimit.ts";
-import { tooManyRequestsResp } from "../_shared/responses.ts";
+import { enforceContentLength, tooManyRequestsResp } from "../_shared/responses.ts";
 
 // analytics_impressions and analytics_events tables are deprecated.
 // This function now reverse-proxies all analytics traffic to the secondary
@@ -45,6 +45,13 @@ export async function analyticsHandler(
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  // SECURITY_AUDIT_TODO item 3: cap body size BEFORE `req.text()`. 32KB is
+  // more than any legitimate analytics beacon (single events are ~1KB,
+  // batches of 10 events are a few KB). Keeping this small protects both
+  // this function's memory budget AND the upstream secondary project.
+  const oversize = enforceContentLength(req, 32768);
+  if (oversize) return oversize;
 
   try {
     // Read raw body once so we can both parse it (for validation) and forward it

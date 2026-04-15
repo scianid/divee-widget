@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { errorResp, successResp } from "../_shared/responses.ts";
+import { enforceContentLength, errorResp, successResp } from "../_shared/responses.ts";
 import {
   deleteConversation,
   getConversationById,
@@ -118,6 +118,12 @@ export async function conversationsHandler(
       req.method === "POST" && pathParts.length === 2 &&
       pathParts[1] === "reset"
     ) {
+      // SECURITY_AUDIT_TODO item 3: cap body size BEFORE parsing. Reset
+      // payload is three IDs — 4KB is plenty. Applied only in this branch
+      // because the other conversations routes don't read a body.
+      const oversize = enforceContentLength(req, 4096);
+      if (oversize) return oversize;
+
       const { visitor_id, article_unique_id, project_id } = await req.json();
 
       if (!visitor_id || !article_unique_id || !project_id) {

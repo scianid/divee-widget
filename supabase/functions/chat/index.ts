@@ -10,7 +10,7 @@ import {
 } from "../_shared/ai.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { getProjectById } from "../_shared/dao/projectDao.ts";
-import { errorResp, successResp } from "../_shared/responses.ts";
+import { enforceContentLength, errorResp, successResp } from "../_shared/responses.ts";
 import {
   extractCachedSuggestions,
   getArticleById,
@@ -90,6 +90,13 @@ export async function chatHandler(
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  // SECURITY_AUDIT_TODO item 3: cap body size BEFORE parsing. sanitizeContent
+  // already truncates to MAX_CONTENT_LENGTH (20KB) + MAX_TITLE_LENGTH (1KB),
+  // but the truncation runs AFTER req.json() which loads the full body into
+  // memory. 64KB gives headroom for JSON envelope + other fields.
+  const oversize = enforceContentLength(req, 65536);
+  if (oversize) return oversize;
 
   try {
     let {
