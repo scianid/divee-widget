@@ -95,6 +95,22 @@ function body(overrides: Record<string, unknown> = {}) {
   return { projectId: PROJECT_ID, currentUrl: CURRENT_URL, ...overrides };
 }
 
+// ── Content-length guard (SECURITY_AUDIT_TODO item 3) ────────────────────
+
+Deno.test("suggested-articles: Content-Length above 4KB cap returns 413", async () => {
+  const r = new Request("https://widget.divee.ai/functions/v1/suggested-articles", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "origin": ORIGIN,
+      "content-length": String(10_000),
+    },
+    body: "{}",
+  });
+  const res = await suggestedArticlesHandler(r, makeDeps());
+  assertEquals(res.status, 413);
+});
+
 // ── Preflight & validation ────────────────────────────────────────────────
 
 Deno.test("suggested-articles: OPTIONS preflight returns 200", async () => {
@@ -178,10 +194,15 @@ Deno.test("suggested-articles: auth check runs BEFORE the article fetch", async 
 });
 
 Deno.test("suggested-articles: non-JSON body returns 500", async () => {
+  const body = "not json{";
   const r = new Request("https://widget.divee.ai/functions/v1/suggested-articles", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "origin": ORIGIN },
-    body: "not json{",
+    headers: {
+      "Content-Type": "application/json",
+      "origin": ORIGIN,
+      "content-length": String(new TextEncoder().encode(body).byteLength),
+    },
+    body,
   });
   const res = await suggestedArticlesHandler(r, makeDeps());
   assertEquals(res.status, 500);

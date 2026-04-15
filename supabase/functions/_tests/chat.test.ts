@@ -99,10 +99,16 @@ function validBody(overrides: Record<string, unknown> = {}) {
 }
 
 function req(body: unknown, origin = ALLOWED_ORIGIN): Request {
+  const serialized = JSON.stringify(body);
   return new Request("https://widget.divee.ai/functions/v1/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "origin": origin },
-    body: JSON.stringify(body),
+    headers: {
+      "Content-Type": "application/json",
+      "origin": origin,
+      // SECURITY_AUDIT_TODO item 3: enforceContentLength reads this.
+      "content-length": String(new TextEncoder().encode(serialized).byteLength),
+    },
+    body: serialized,
   });
 }
 
@@ -151,6 +157,49 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
     ...overrides,
   };
 }
+
+// ── Content-length guard (SECURITY_AUDIT_TODO item 3) ───────────────────
+
+Deno.test("chat: request with no Content-Length header returns 411", async () => {
+  const r = new Request("https://widget.divee.ai/functions/v1/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "origin": ALLOWED_ORIGIN },
+    body: JSON.stringify({ projectId: PROJECT_ID, questionId: "q1", question: "hi", url: "u" }),
+  });
+  const res = await chatHandler(r, makeDeps());
+  assertEquals(res.status, 411);
+});
+
+Deno.test("chat: Content-Length above 64KB cap returns 413 without parsing body", async () => {
+  // Critical: the whole point of the guard is to reject BEFORE req.json()
+  // loads the payload. We claim a content-length of 1 MB even though the
+  // body is tiny — the header is what the handler trusts.
+  const r = new Request("https://widget.divee.ai/functions/v1/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "origin": ALLOWED_ORIGIN,
+      "content-length": String(1024 * 1024),
+    },
+    body: "{}",
+  });
+  const res = await chatHandler(r, makeDeps());
+  assertEquals(res.status, 413);
+});
+
+Deno.test("chat: Content-Length that isn't a number returns 400", async () => {
+  const r = new Request("https://widget.divee.ai/functions/v1/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "origin": ALLOWED_ORIGIN,
+      "content-length": "not-a-number",
+    },
+    body: "{}",
+  });
+  const res = await chatHandler(r, makeDeps());
+  assertEquals(res.status, 400);
+});
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 

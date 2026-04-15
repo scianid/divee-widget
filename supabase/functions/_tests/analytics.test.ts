@@ -61,19 +61,30 @@ function fakeProject(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** Build a POST /analytics request with configurable body and headers. */
+/** Build a POST /analytics request with configurable body and headers.
+ *  Sets `content-length` so the handler's `enforceContentLength` guard
+ *  sees a real value (Deno's in-memory Request doesn't populate it). */
 function postEvent(
   body: unknown,
-  opts: { origin?: string | null; cfIp?: string; referer?: string; raw?: string } = {},
+  opts: {
+    origin?: string | null;
+    cfIp?: string;
+    referer?: string;
+    raw?: string;
+    contentLength?: string;
+  } = {},
 ): Request {
+  const serialized = opts.raw !== undefined ? opts.raw : JSON.stringify(body);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  headers["content-length"] = opts.contentLength ??
+    String(new TextEncoder().encode(serialized).byteLength);
   if (opts.origin !== null) headers["origin"] = opts.origin ?? ALLOWED_ORIGIN;
   if (opts.cfIp) headers["cf-connecting-ip"] = opts.cfIp;
   if (opts.referer) headers["referer"] = opts.referer;
   return new Request("https://widget.divee.ai/functions/v1/analytics", {
     method: "POST",
     headers,
-    body: opts.raw !== undefined ? opts.raw : JSON.stringify(body),
+    body: serialized,
   });
 }
 
@@ -97,6 +108,25 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
     ...overrides,
   };
 }
+
+// ── Content-length guard (SECURITY_AUDIT_TODO item 3) ────────────────────
+
+Deno.test("analytics: Content-Length above 32KB cap returns 413 without forwarding", async () => {
+  // Protects the upstream secondary project's budget from huge payloads.
+  let fetchCalled = false;
+  const deps = makeDeps({
+    fetchFn: () => {
+      fetchCalled = true;
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    },
+  });
+  const res = await analyticsHandler(
+    postEvent({ project_id: PROJECT_ID }, { contentLength: String(1024 * 1024) }),
+    deps,
+  );
+  assertEquals(res.status, 413);
+  assertEquals(fetchCalled, false);
+});
 
 // ── Preflight & body validation ───────────────────────────────────────────
 

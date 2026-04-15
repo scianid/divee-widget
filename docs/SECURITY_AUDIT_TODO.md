@@ -68,7 +68,7 @@ auditor's benefit.
 - **SOC2**: CC6.1, A1.2
 - **Effort**: ~2 hours.
 
-### [ ] 3. Size-cap every handler that reads a request body
+### [x] 3. Size-cap every handler that reads a request body
 
 - **What**: `analytics/index.ts` does `await req.text()` and then
   forwards the result. `chat/index.ts` and `suggestions/index.ts` do

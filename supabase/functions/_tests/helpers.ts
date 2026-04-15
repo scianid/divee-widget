@@ -6,15 +6,20 @@
 // they don't care about, and call the handler directly. No fetch mocking,
 // no network, no module-level state between tests.
 
-/** Minimal POST request builder. */
+/** Minimal POST request builder. Sets `content-length` so handlers that
+ *  use `enforceContentLength` (SECURITY_AUDIT_TODO item 3) see a real
+ *  value — Deno's in-memory `new Request()` does NOT populate it the way
+ *  a browser does over the wire, so we have to do it manually. */
 export function postJson(path: string, body: unknown, origin = "https://test.divee.ai"): Request {
+  const serialized = JSON.stringify(body);
   return new Request(`https://widget.divee.ai/functions/v1/${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "origin": origin,
+      "content-length": String(new TextEncoder().encode(serialized).byteLength),
     },
-    body: JSON.stringify(body),
+    body: serialized,
   });
 }
 

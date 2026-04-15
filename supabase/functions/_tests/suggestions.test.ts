@@ -124,6 +124,36 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
   };
 }
 
+// ── Content-length guard (SECURITY_AUDIT_TODO item 3) ────────────────────
+
+Deno.test("suggestions: Content-Length above 64KB cap returns 413 without calling AI or DAO", async () => {
+  let aiCalled = false;
+  let daoCalled = false;
+  const deps = makeDeps({
+    generateSuggestions: () => {
+      aiCalled = true;
+      return Promise.resolve(fakeAiResult());
+    },
+    getArticleById: () => {
+      daoCalled = true;
+      return Promise.resolve(null);
+    },
+  });
+  const r = new Request("https://widget.divee.ai/functions/v1/suggestions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "origin": ALLOWED_ORIGIN,
+      "content-length": String(1024 * 1024),
+    },
+    body: "{}",
+  });
+  const res = await suggestionsHandler(r, deps);
+  assertEquals(res.status, 413);
+  assertEquals(aiCalled, false);
+  assertEquals(daoCalled, false);
+});
+
 // ── Global auth / shape ───────────────────────────────────────────────────
 
 Deno.test("suggestions: OPTIONS preflight returns 200", async () => {
@@ -168,10 +198,16 @@ Deno.test("suggestions: origin not in allowed_urls returns 403", async () => {
 });
 
 Deno.test("suggestions: unhandled error (non-JSON body) returns 500", async () => {
+  const body = "not json{";
   const r = new Request("https://widget.divee.ai/functions/v1/suggestions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "origin": ALLOWED_ORIGIN },
-    body: "not json{",
+    headers: {
+      "Content-Type": "application/json",
+      "origin": ALLOWED_ORIGIN,
+      // Pass the content-length guard so we reach the JSON.parse failure.
+      "content-length": String(new TextEncoder().encode(body).byteLength),
+    },
+    body,
   });
   const res = await suggestionsHandler(r, makeDeps());
   assertEquals(res.status, 500);

@@ -123,10 +123,16 @@ function buildReq(
   }
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (opts.token && !opts.tokenInQuery) headers["x-visitor-token"] = opts.token;
+  const serialized = opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
+  if (serialized !== undefined) {
+    // Set content-length so enforceContentLength in the reset handler
+    // (SECURITY_AUDIT_TODO item 3) sees a real value.
+    headers["content-length"] = String(new TextEncoder().encode(serialized).byteLength);
+  }
   return new Request(u.toString(), {
     method,
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: serialized,
   });
 }
 
@@ -285,6 +291,37 @@ Deno.test("conversations GET messages: missing messages field defaults to empty 
   assertEquals(res.status, 200);
   const body = await res.json();
   assertEquals(body.messages, []);
+});
+
+// ── Content-length guard on reset (SECURITY_AUDIT_TODO item 3) ──────────
+
+Deno.test("conversations POST reset: Content-Length above 4KB cap returns 413", async () => {
+  // Direct Request build to override content-length (buildReq would
+  // otherwise set it from the actual body length).
+  const r = new Request("https://widget.divee.ai/conversations/reset", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-visitor-token": GOOD_TOKEN,
+      "content-length": String(10_000),
+    },
+    body: "{}",
+  });
+  const res = await conversationsHandler(r, makeDeps());
+  assertEquals(res.status, 413);
+});
+
+Deno.test("conversations GET list: no Content-Length is fine (no body)", async () => {
+  // Regression guard: the content-length check is scoped to the reset
+  // branch only. GET routes must still work without Content-Length.
+  const res = await conversationsHandler(
+    buildReq("GET", "conversations", {
+      token: GOOD_TOKEN,
+      query: { visitor_id: VISITOR_ID, project_id: PROJECT_ID },
+    }),
+    makeDeps(),
+  );
+  assertEquals(res.status, 200);
 });
 
 // ── POST /conversations/reset ────────────────────────────────────────────
