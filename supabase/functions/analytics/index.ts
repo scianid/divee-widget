@@ -1,5 +1,4 @@
-// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { getRequestOriginUrl, isAllowedOrigin } from "../_shared/origin.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
@@ -10,7 +9,34 @@ import { getProjectById } from "../_shared/dao/projectDao.ts";
 // project's analytics endpoint (configured via ANALYTICS_PROXY_URL).
 // Origin validation is still enforced locally before forwarding.
 
-serve(async (req: Request) => {
+// ─── Dependency injection seam ────────────────────────────────────────────
+// `analyticsHandler` accepts an `AnalyticsDeps` object so unit tests can
+// stub the Supabase DAO + the outbound fetch without touching the network.
+// Production wires the real implementations via `realAnalyticsDeps`. Same
+// pattern as chat/config/articles/etc.
+export interface AnalyticsDeps {
+  supabaseClient: typeof supabaseClient;
+  getProjectById: typeof getProjectById;
+  fetchFn: typeof fetch;
+}
+
+export const realAnalyticsDeps: AnalyticsDeps = {
+  supabaseClient,
+  getProjectById,
+  fetchFn: fetch,
+};
+
+function jsonResp(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+export async function analyticsHandler(
+  req: Request,
+  deps: AnalyticsDeps = realAnalyticsDeps,
+): Promise<Response> {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -24,13 +50,7 @@ serve(async (req: Request) => {
       rawBody = await req.text();
       body = JSON.parse(rawBody);
     } catch {
-      return new Response(
-        JSON.stringify({ error: "Invalid or empty request body" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResp({ error: "Invalid or empty request body" }, 400);
     }
 
     // Resolve project_id from single event or first batch event
@@ -42,28 +62,16 @@ serve(async (req: Request) => {
         : undefined);
 
     if (!projectId) {
-      return new Response(
-        JSON.stringify({ error: "Missing required field: project_id" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResp({ error: "Missing required field: project_id" }, 400);
     }
 
     // Validate project exists and origin is allowed
-    const supabase = await supabaseClient();
+    const supabase = await deps.supabaseClient();
     let project;
     try {
-      project = await getProjectById(projectId, supabase);
+      project = await deps.getProjectById(projectId, supabase);
     } catch {
-      return new Response(
-        JSON.stringify({ error: "Invalid project_id" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResp({ error: "Invalid project_id" }, 404);
     }
 
     const requestUrl = getRequestOriginUrl(req);
@@ -72,13 +80,7 @@ serve(async (req: Request) => {
         attempted: requestUrl,
         projectId,
       });
-      return new Response(
-        JSON.stringify({ error: "Origin not allowed" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResp({ error: "Origin not allowed" }, 403);
     }
 
     // Forward to secondary project's analytics endpoint
@@ -86,13 +88,7 @@ serve(async (req: Request) => {
     const proxyUrl = Deno.env.get("ANALYTICS_PROXY_URL");
     if (!proxyUrl) {
       console.error("analytics: ANALYTICS_PROXY_URL is not configured");
-      return new Response(
-        JSON.stringify({ error: "Analytics proxy not configured" }),
-        {
-          status: 503,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResp({ error: "Analytics proxy not configured" }, 503);
     }
 
     const forwardHeaders: Record<string, string> = {
@@ -109,7 +105,7 @@ serve(async (req: Request) => {
     const origin = req.headers.get("origin");
     if (origin) forwardHeaders["origin"] = origin;
 
-    const proxyResponse = await fetch(proxyUrl, {
+    const proxyResponse = await deps.fetchFn(proxyUrl, {
       method: "POST",
       headers: forwardHeaders,
       body: rawBody,
@@ -123,12 +119,9 @@ serve(async (req: Request) => {
     });
   } catch (error) {
     console.error("Error proxying analytics event:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return jsonResp({ error: "Internal server error" }, 500);
   }
-});
+}
+
+// @ts-ignore: Deno globals and JSR imports are unavailable to the editor TS server
+Deno.serve((req: Request) => analyticsHandler(req));
