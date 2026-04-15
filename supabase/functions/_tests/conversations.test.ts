@@ -96,6 +96,10 @@ function makeDeps(overrides: Record<string, unknown> = {}): any {
     getConversationById: () => Promise.resolve(fakeConversation()),
     resetConversation: () => Promise.resolve("conv-new"),
     deleteConversation: () => Promise.resolve(true),
+    // SECURITY_AUDIT_TODO item 8: audit is best-effort; default stub
+    // reports success and records nothing. Per-test overrides record
+    // the args for assertion.
+    recordAuditEvent: () => Promise.resolve(true),
     ...overrides,
   };
 }
@@ -466,6 +470,163 @@ Deno.test("conversations: DAO throw returns 500", async () => {
     deps,
   );
   assertEquals(res.status, 500);
+});
+
+// ── Audit trail (SECURITY_AUDIT_TODO item 8) ────────────────────────────
+// These pin the SOC2 CC7.3 requirement: every destructive action must
+// leave a durable record with actor, target, source IP, and enough
+// metadata for an incident responder to reason about what happened.
+
+Deno.test("conversations POST reset: emits audit event on success", async () => {
+  // deno-lint-ignore no-explicit-any
+  let audit: any = null;
+  const deps = makeDeps({
+    resetConversation: () => Promise.resolve("conv-reset-42"),
+    // deno-lint-ignore no-explicit-any
+    recordAuditEvent: (_sb: unknown, event: any) => {
+      audit = event;
+      return Promise.resolve(true);
+    },
+  });
+
+  // Build a request with cf-connecting-ip + user-agent so the audit
+  // row captures them. The standard buildReq helper doesn't set these,
+  // so build directly.
+  const r = new Request("https://widget.divee.ai/conversations/reset", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-visitor-token": GOOD_TOKEN,
+      "cf-connecting-ip": "203.0.113.42",
+      "user-agent": "test-ua/1.0",
+      "content-length": String(
+        new TextEncoder().encode(
+          JSON.stringify({
+            visitor_id: VISITOR_ID,
+            article_unique_id: ARTICLE_UNIQUE_ID,
+            project_id: PROJECT_ID,
+          }),
+        ).byteLength,
+      ),
+    },
+    body: JSON.stringify({
+      visitor_id: VISITOR_ID,
+      article_unique_id: ARTICLE_UNIQUE_ID,
+      project_id: PROJECT_ID,
+    }),
+  });
+
+  const res = await conversationsHandler(r, deps);
+  assertEquals(res.status, 200);
+  assertEquals(audit.action, "conversation.reset");
+  assertEquals(audit.visitorId, VISITOR_ID);
+  assertEquals(audit.projectId, PROJECT_ID);
+  assertEquals(audit.target, "conv-reset-42");
+  assertEquals(audit.sourceIp, "203.0.113.42");
+  assertEquals(audit.userAgent, "test-ua/1.0");
+  assertEquals(audit.metadata?.article_unique_id, ARTICLE_UNIQUE_ID);
+});
+
+Deno.test("conversations POST reset: audit write failure does NOT fail the request", async () => {
+  // Audit is best-effort. A DB hiccup on audit_log must not surface as
+  // a 500 after we already reset the conversation — that would leave
+  // the client retrying a destructive action.
+  const deps = makeDeps({
+    resetConversation: () => Promise.resolve("conv-reset-99"),
+    recordAuditEvent: () => Promise.resolve(false), // audit DB rejected
+  });
+  const res = await conversationsHandler(
+    buildReq("POST", "conversations/reset", {
+      token: GOOD_TOKEN,
+      body: {
+        visitor_id: VISITOR_ID,
+        article_unique_id: ARTICLE_UNIQUE_ID,
+        project_id: PROJECT_ID,
+      },
+    }),
+    deps,
+  );
+  assertEquals(res.status, 200);
+});
+
+Deno.test("conversations DELETE: emits audit event with pre-delete metadata", async () => {
+  // deno-lint-ignore no-explicit-any
+  let audit: any = null;
+  const preDelete = fakeConversation({
+    message_count: 17, // arbitrary pre-state we can assert on
+  });
+  const deps = makeDeps({
+    getConversationById: () => Promise.resolve(preDelete),
+    deleteConversation: () => Promise.resolve(true),
+    // deno-lint-ignore no-explicit-any
+    recordAuditEvent: (_sb: unknown, event: any) => {
+      audit = event;
+      return Promise.resolve(true);
+    },
+  });
+
+  const r = new Request(`https://widget.divee.ai/conversations/${CONVERSATION_ID}`, {
+    method: "DELETE",
+    headers: {
+      "x-visitor-token": GOOD_TOKEN,
+      "cf-connecting-ip": "203.0.113.7",
+      "user-agent": "delete-ua/2.0",
+    },
+  });
+  const res = await conversationsHandler(r, deps);
+  assertEquals(res.status, 200);
+  assertEquals(audit.action, "conversation.delete");
+  assertEquals(audit.visitorId, VISITOR_ID);
+  // projectId comes from the pre-fetched conversation, not the request
+  assertEquals(audit.projectId, PROJECT_ID);
+  assertEquals(audit.target, CONVERSATION_ID);
+  assertEquals(audit.sourceIp, "203.0.113.7");
+  assertEquals(audit.userAgent, "delete-ua/2.0");
+  // Before-state captured for incident response
+  assertEquals(audit.metadata?.message_count_before, 17);
+});
+
+Deno.test("conversations DELETE: audit runs AFTER the DAO call (not before)", async () => {
+  // Regression guard: if someone reorders the handler to call
+  // recordAuditEvent first, a failed deleteConversation would leave an
+  // audit row saying "deleted" for a conversation that still exists.
+  // We assert the sequence by tracking call order.
+  const calls: string[] = [];
+  const deps = makeDeps({
+    deleteConversation: () => {
+      calls.push("delete");
+      return Promise.resolve(true);
+    },
+    recordAuditEvent: () => {
+      calls.push("audit");
+      return Promise.resolve(true);
+    },
+  });
+  await conversationsHandler(
+    buildReq("DELETE", `conversations/${CONVERSATION_ID}`, { token: GOOD_TOKEN }),
+    deps,
+  );
+  assertEquals(calls, ["delete", "audit"]);
+});
+
+Deno.test("conversations DELETE: failed DAO means NO audit row", async () => {
+  // The audit row represents a successful destructive action. If the
+  // DAO returns false we return 500 and must NOT have written an audit
+  // row.
+  let auditCalled = false;
+  const deps = makeDeps({
+    deleteConversation: () => Promise.resolve(false),
+    recordAuditEvent: () => {
+      auditCalled = true;
+      return Promise.resolve(true);
+    },
+  });
+  const res = await conversationsHandler(
+    buildReq("DELETE", `conversations/${CONVERSATION_ID}`, { token: GOOD_TOKEN }),
+    deps,
+  );
+  assertEquals(res.status, 500);
+  assertEquals(auditCalled, false);
 });
 
 // ── Teardown ──────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { supabaseClient } from "../_shared/supabaseClient.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { enforceContentLength, errorResp, successResp } from "../_shared/responses.ts";
+import { extractAuditContext, recordAuditEvent } from "../_shared/auditLog.ts";
 import {
   deleteConversation,
   getConversationById,
@@ -22,6 +23,7 @@ export interface ConversationsDeps {
   getConversationById: typeof getConversationById;
   resetConversation: typeof resetConversation;
   deleteConversation: typeof deleteConversation;
+  recordAuditEvent: typeof recordAuditEvent;
 }
 
 export const realConversationsDeps: ConversationsDeps = {
@@ -31,6 +33,7 @@ export const realConversationsDeps: ConversationsDeps = {
   getConversationById,
   resetConversation,
   deleteConversation,
+  recordAuditEvent,
 };
 
 export async function conversationsHandler(
@@ -148,6 +151,20 @@ export async function conversationsHandler(
         return errorResp("Failed to reset conversation", 500);
       }
 
+      // SECURITY_AUDIT_TODO item 8: audit AFTER the DAO mutation has
+      // succeeded. A failure here must not surface as a user-visible
+      // error — compliance logging is best-effort, not a blocking gate.
+      const auditCtx = extractAuditContext(req);
+      await deps.recordAuditEvent(supabase, {
+        visitorId: visitor_id,
+        projectId: project_id,
+        action: "conversation.reset",
+        target: conversationId,
+        sourceIp: auditCtx.sourceIp,
+        userAgent: auditCtx.userAgent,
+        metadata: { article_unique_id },
+      });
+
       return successResp({ conversation_id: conversationId });
     }
 
@@ -171,6 +188,24 @@ export async function conversationsHandler(
       if (!success) {
         return errorResp("Failed to delete conversation", 500);
       }
+
+      // SECURITY_AUDIT_TODO item 8: audit AFTER the DAO mutation has
+      // succeeded. We record the pre-fetched conversation's project_id
+      // (not from query params — the conversation is the authoritative
+      // source) and enough metadata to reconstruct the before-state.
+      const auditCtx = extractAuditContext(req);
+      await deps.recordAuditEvent(supabase, {
+        visitorId: tokenData.visitorId,
+        projectId: conversation.project_id,
+        action: "conversation.delete",
+        target: conversationId,
+        sourceIp: auditCtx.sourceIp,
+        userAgent: auditCtx.userAgent,
+        metadata: {
+          article_unique_id: conversation.article_unique_id,
+          message_count_before: conversation.message_count,
+        },
+      });
 
       return successResp({ success: true });
     }

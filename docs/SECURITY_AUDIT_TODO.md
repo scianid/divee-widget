@@ -216,7 +216,7 @@ short-lived token. The static-key path is gone.
 - **SOC2**: CC6.1, CC7.3
 - **Effort**: ~2 hours for (1), ~4 hours for (2).
 
-### [ ] 8. Add an `audit_log` table for destructive actions
+### [x] 8. Add an `audit_log` table for destructive actions
 
 - **What**: `DELETE /conversations/:id` and `POST /conversations/reset`
   have no durable record of who did what. Chat token usage is tracked
