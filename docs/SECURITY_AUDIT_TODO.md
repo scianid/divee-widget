@@ -267,8 +267,33 @@ the same tradeoffs.
 - **SOC2**: CC7.3
 - **Effort**: ~2 hours.
 
-### [ ] 9. Enable RLS on sensitive tables even though service-role
+### [x] 9. Enable RLS on sensitive tables even though service-role
   bypasses it
+
+**Already done in production.** Verified against
+[supabase/schema-dump.sql](../../supabase/schema-dump.sql) — every
+widget-sensitive table is already `ENABLE ROW LEVEL SECURITY`, and
+the policy model splits cleanly between fail-closed tables and
+back-office-scoped tables:
+
+| Table | RLS | Policy model | Anon/auth result |
+| --- | --- | --- | --- |
+| `ai_rate_limits` | ✅ on | no policies | default deny |
+| `rag_documents` | ✅ on | no policies | default deny |
+| `rag_chunks` | ✅ on | no policies | default deny |
+| `conversations` | ✅ on | narrow SELECT for back-office project owners | no match for anon |
+| `article_tag` | ✅ on | narrow SELECT for back-office project owners | no match for anon |
+| `token_usage` | ✅ on | narrow SELECT for auth + service_role INSERT | no match for anon |
+| `freeform_qa` | ✅ on | narrow SELECT for back-office owners | no match for anon |
+| `project` / `project_config` / `project_ai_settings` | ✅ on | admin-only policies | no match for anon |
+
+My earlier audit note ("RLS is dead code as a defense") was
+imprecise. RLS is enabled; service-role traffic bypassing it is
+correct by design. The belt-and-braces fail-closed state the item
+asked for is the state we already have.
+
+Nothing to change. Entry kept for the audit trail so a future reviewer
+doesn't re-flag it without reading the schema dump.
 
 - **What**: All edge functions use `SUPABASE_SERVICE_ROLE_KEY` which
   bypasses RLS. RLS is therefore dead code as a defense — every access
