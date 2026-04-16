@@ -120,24 +120,38 @@ jobs:
             exit 1
           fi
 
-          echo "Uploading divee.sdk.latest.js..."
-          curl -sS --fail-with-body -X POST "${STORAGE_URL}/divee.sdk.latest.js" \
+          echo "Uploading divee.sdk.latest.js ($(wc -c < dist/divee.sdk.latest.js) bytes)..."
+          RESP=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X POST "${STORAGE_URL}/divee.sdk.latest.js" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/javascript" \
             -H "x-upsert: true" \
             -H "Cache-Control: public, max-age=300" \
-            --data-binary @dist/divee.sdk.latest.js
+            --data-binary @dist/divee.sdk.latest.js)
+          echo "$RESP"
+          echo "$RESP" | grep -q "HTTP_STATUS:200" || { echo "::error::Upload failed"; exit 1; }
 
           # Upload versioned copy
           VERSIONED=$(ls dist/divee.sdk.*.js | grep -v latest | sort | tail -1)
           VERSIONED_NAME=$(basename "$VERSIONED")
           echo "Uploading ${VERSIONED_NAME}..."
-          curl -sS --fail-with-body -X POST "${STORAGE_URL}/${VERSIONED_NAME}" \
+          RESP2=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X POST "${STORAGE_URL}/${VERSIONED_NAME}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/javascript" \
             -H "x-upsert: true" \
             -H "Cache-Control: public, max-age=31536000, immutable" \
-            --data-binary "@${VERSIONED}"
+            --data-binary "@${VERSIONED}")
+          echo "$RESP2"
+          echo "$RESP2" | grep -q "HTTP_STATUS:200" || { echo "::error::Upload failed"; exit 1; }
+
+          # Verify by fetching the file
+          echo "Verifying upload..."
+          VERIFY_URL="https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1/object/public/public-files/sdk/divee.sdk.latest.js"
+          VERIFY_SIZE=$(curl -sS -o /dev/null -w "%{size_download}" "$VERIFY_URL")
+          LOCAL_SIZE=$(wc -c < dist/divee.sdk.latest.js)
+          echo "Remote size: ${VERIFY_SIZE} bytes, Local size: ${LOCAL_SIZE} bytes"
+          if [ "$VERIFY_SIZE" -lt 1000 ]; then
+            echo "::warning::Uploaded file seems too small or not accessible (${VERIFY_SIZE} bytes)"
+          fi
 
           echo "Upload complete."
 
