@@ -1343,6 +1343,15 @@
                 this.log('dom', 'No containerSelector from server config, using default auto-detection');
             }
 
+            // Fallback: use the placeholder div injected next to the script tag
+            if (!targetElement) {
+                this.log('dom', 'No containerSelector, looking for script placeholder div');
+                targetElement = document.getElementById('divee-widget-placeholder');
+                if (targetElement) {
+                    this.log('dom', '✓ Found script placeholder div');
+                }
+            }
+
             // Fallback to default behavior
             if (!targetElement) {
                 this.log('dom', 'Looking for default containers (article, [role="article"], main)');
