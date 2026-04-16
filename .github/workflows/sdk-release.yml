@@ -1,6 +1,6 @@
 name: SDK Release
 
-# Build the widget SDK and upload to Supabase Storage (public-files/sdk).
+# Build the widget SDK and upload to Supabase Storage (sdk).
 #
 # Triggers on push to main when widget source files change.
 # The build produces two files:
@@ -91,7 +91,7 @@ jobs:
     timeout-minutes: 5
     environment:
       name: production-edge-functions
-      url: https://srv.divee.ai/storage/v1/object/public/public-files/sdk/divee.sdk.latest.js
+      url: https://srv.divee.ai/storage/v1/object/public/sdk/divee.sdk.latest.js
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -106,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          STORAGE_URL="https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1/object/public-files/sdk"
+          STORAGE_URL="https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1/object/sdk"
           echo "Storage URL: ${STORAGE_URL}"
           echo "Project ref length: ${#SUPABASE_PROJECT_REF}"
           echo "Service role key length: ${#SUPABASE_SERVICE_ROLE_KEY}"
@@ -145,7 +145,7 @@ jobs:
 
           # Verify by fetching the file
           echo "Verifying upload..."
-          VERIFY_URL="https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1/object/public/public-files/sdk/divee.sdk.latest.js"
+          VERIFY_URL="https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1/object/public/sdk/divee.sdk.latest.js"
           VERIFY_SIZE=$(curl -sS -o /dev/null -w "%{size_download}" "$VERIFY_URL")
           LOCAL_SIZE=$(wc -c < dist/divee.sdk.latest.js)
           echo "Remote size: ${VERIFY_SIZE} bytes, Local size: ${LOCAL_SIZE} bytes"
