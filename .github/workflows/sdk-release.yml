@@ -1,0 +1,145 @@
+name: SDK Release
+
+# Build the widget SDK and upload to Supabase Storage (public-files/sdk/).
+#
+# Triggers on push to main when widget source files change.
+# The build produces two files:
+#   - divee.sdk.latest.js  (always overwritten — the live CDN URL)
+#   - divee.sdk.<timestamp>.js (immutable versioned copy for rollback)
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "build.js"
+      - "package.json"
+      - ".github/workflows/sdk-release.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "build.js"
+      - "package.json"
+      - ".github/workflows/sdk-release.yml"
+
+concurrency:
+  group: sdk-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. TEST & BUILD — runs on every push and PR
+  # ─────────────────────────────────────────────────────────────────────────
+  build:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build SDK
+        run: node build.js
+
+      - name: Verify build output
+        run: |
+          set -euo pipefail
+          ls -lh dist/divee.sdk.latest.js
+          LATEST_SIZE=$(stat -c%s dist/divee.sdk.latest.js 2>/dev/null || stat -f%z dist/divee.sdk.latest.js)
+          echo "latest.js size: ${LATEST_SIZE} bytes"
+          if [ "$LATEST_SIZE" -lt 1000 ]; then
+            echo "::error::Build output is suspiciously small (${LATEST_SIZE} bytes)"
+            exit 1
+          fi
+          # Find the timestamped file
+          VERSIONED=$(ls dist/divee.sdk.*.js | grep -v latest | sort | tail -1)
+          echo "versioned_file=$(basename "$VERSIONED")" >> "$GITHUB_OUTPUT"
+          echo "Versioned file: $VERSIONED"
+
+      - name: Upload build artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-dist
+          path: dist/
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. DEPLOY — only on push to main, after build passes,
+  #    requires manual approval via the production-sdk environment.
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Upload to Supabase Storage
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production-sdk
+      url: https://srv.divee.ai/storage/v1/object/public/public-files/sdk/divee.sdk.latest.js
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sdk-dist
+          path: dist/
+
+      - name: Upload latest SDK to Supabase Storage
+        env:
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          STORAGE_URL="https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1/object/public-files/sdk"
+
+          echo "Uploading divee.sdk.latest.js..."
+          curl -sf -X POST "${STORAGE_URL}/divee.sdk.latest.js" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/javascript" \
+            -H "x-upsert: true" \
+            -H "Cache-Control: public, max-age=300" \
+            --data-binary @dist/divee.sdk.latest.js
+
+          # Upload versioned copy
+          VERSIONED=$(ls dist/divee.sdk.*.js | grep -v latest | sort | tail -1)
+          VERSIONED_NAME=$(basename "$VERSIONED")
+          echo "Uploading ${VERSIONED_NAME}..."
+          curl -sf -X POST "${STORAGE_URL}/${VERSIONED_NAME}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/javascript" \
+            -H "x-upsert: true" \
+            -H "Cache-Control: public, max-age=31536000, immutable" \
+            --data-binary "@${VERSIONED}"
+
+          echo "Upload complete."
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          VERSIONED=$(ls dist/divee.sdk.*.js 2>/dev/null | grep -v latest | sort | tail -1 || echo "")
+          {
+            echo "## SDK Release"
+            echo ""
+            echo "**Latest:** \`divee.sdk.latest.js\`"
+            echo "**Versioned:** \`$(basename "${VERSIONED:-unknown}")\`"
+            echo "**Size:** $(stat -c%s dist/divee.sdk.latest.js 2>/dev/null || stat -f%z dist/divee.sdk.latest.js) bytes"
+            echo ""
+            echo "**Deployed by:** @${{ github.actor }}"
+            echo "**Commit:** ${{ github.sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
