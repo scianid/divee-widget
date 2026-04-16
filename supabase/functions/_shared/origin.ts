@@ -34,36 +34,19 @@ function extractHostFromEntry(entry: string): string {
   }
 }
 
-// DRY RUN: logs what the check would do, always returns true.
-// When rawUrl is null (no Origin or Referer), logs it as a CDN/infra request.
 export function isAllowedOrigin(
   rawUrl: string | null | undefined,
   allowedUrls: string[] | null | undefined,
 ): boolean {
   // No Origin and no Referer — CDN cache-warming or infra request.
   // Real browsers always send at least one of these headers.
-  if (!rawUrl) {
-    console.warn("origin-dry-run: no origin/referer (CDN request)", {
-      allowedUrls,
-      wouldAllow: true,
-    });
-    return true;
-  }
+  if (!rawUrl) return true;
 
   const requestHost = normalizeHost(getBaseHost(rawUrl) || "");
   const allowedHosts = Array.isArray(allowedUrls)
     ? allowedUrls.map((entry) => normalizeHost(extractHostFromEntry(entry)))
     : [];
 
-  const wouldAllow = !!requestHost && allowedHosts.length > 0 &&
+  return !!requestHost && allowedHosts.length > 0 &&
     allowedHosts.includes(requestHost);
-
-  console.warn("origin-dry-run", {
-    rawUrl,
-    requestHost,
-    allowedHosts,
-    wouldAllow,
-  });
-
-  return true;
 }
