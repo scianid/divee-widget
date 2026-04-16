@@ -134,7 +134,7 @@ jobs:
           VERSIONED=$(ls dist/divee.sdk.*.js | grep -v latest | sort | tail -1)
           VERSIONED_NAME=$(basename "$VERSIONED")
           echo "Uploading ${VERSIONED_NAME}..."
-          RESP2=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X POST "${STORAGE_URL}/${VERSIONED_NAME}" \
+          RESP2=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X POST "${STORAGE_URL}/versions/${VERSIONED_NAME}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/javascript" \
             -H "x-upsert: true" \
