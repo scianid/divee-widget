@@ -1,7 +1,6 @@
 name: SDK Release
 
 # Build the widget SDK and upload to Supabase Storage (public-files/sdk).
-# Trigger: push to main when src/, build.js, or this workflow change.
 #
 # Triggers on push to main when widget source files change.
 # The build produces two files:
