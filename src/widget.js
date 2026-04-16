@@ -9,7 +9,7 @@
 (function () {
     'use strict';
 
-    console.debug('[Divee] Script loaded...');
+    console.debug('[Divee] Script loaded......');
 
     // Singleton guard — prevent duplicate initialization if the script is injected more than once
     if (window.__diveeWidgetLoaded) return;
