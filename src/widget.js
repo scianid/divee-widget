@@ -27,7 +27,7 @@
                 anchoredPosition: 'bottom',
                 sidebarPosition: 'right',
                 articleClass: null,
-                containerSelector: null,
+                containerSelector: config.containerSelector || null,
                 attentionAnimation: config.attentionAnimation !== false
             };
 
@@ -734,14 +734,19 @@
                     this.log('config', 'Article class from config:', serverConfig.article_class);
                 }
                 
-                // Handle container selector with mobile override support
-                const isMobile = window.innerWidth < 768;
-                if (isMobile && serverConfig.override_mobile_container_selector) {
-                    this.config.containerSelector = serverConfig.override_mobile_container_selector;
-                    this.log('config', 'Container selector from mobile override:', serverConfig.override_mobile_container_selector);
-                } else if (serverConfig.widget_container_class) {
-                    this.config.containerSelector = serverConfig.widget_container_class;
-                    this.log('config', 'Container selector from config:', serverConfig.widget_container_class);
+                // Handle container selector with mobile override support.
+                // Caller-provided containerSelector (via init config) takes precedence over server config.
+                if (this.config.containerSelector) {
+                    this.log('config', 'Container selector from init config (takes precedence):', this.config.containerSelector);
+                } else {
+                    const isMobile = window.innerWidth < 768;
+                    if (isMobile && serverConfig.override_mobile_container_selector) {
+                        this.config.containerSelector = serverConfig.override_mobile_container_selector;
+                        this.log('config', 'Container selector from mobile override:', serverConfig.override_mobile_container_selector);
+                    } else if (serverConfig.widget_container_class) {
+                        this.config.containerSelector = serverConfig.widget_container_class;
+                        this.log('config', 'Container selector from config:', serverConfig.widget_container_class);
+                    }
                 }
 
 
